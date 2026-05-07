@@ -1,0 +1,24 @@
+# 编辑器相关
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 日志、缓存
+*.log
+temp/
+cache/
+*.tmp
+
+# 配置文件（密码、密钥）
+config/*.secret
+*.env
+
+# 依赖包、编译文件
+node_modules/
+dist/
+build/
