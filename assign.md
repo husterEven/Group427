@@ -5,4 +5,5 @@
 许羿祖 更新README.md，加入了易于理解的介绍  
 张敬坤 根据提示词向AI进行询问，反复修改与调试对话后创建了ai.md，记录与AI对话的过程  
 张敬坤 创建了user_stories.md与use_cases.md并记录了对应内容  
+郑逸文 向ai.md与users_stories中记录了与AI对话得到的输出  
 许羿祖 对ai.md进行了更新
