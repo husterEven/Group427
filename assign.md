@@ -7,3 +7,4 @@
 张敬坤 创建了user_stories.md与use_cases.md并记录了对应内容  
 郑逸文 向ai.md与users_stories中记录了与AI对话得到的输出  
 许羿祖 对ai.md进行了更新
+郑逸文 更新了gitignore文件
