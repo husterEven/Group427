@@ -81,7 +81,7 @@
 | riskType | String | 风险偏好类型 |
 | investmentExperience | String | 投资经验标签 |
 
-####操作  
+#### 操作  
 - `savePreferences(userId:Long, markets:List<String>, risk:String, experience:String)` - 保存用户偏好设置
 - `getPreferences(userId:Long)` - 获取用户偏好设置
 
@@ -94,7 +94,7 @@
 | postVisibility | Integer | 发帖动态可见范围 |
 | followVisibility | Integer | 关注粉丝列表可见范围 |
 
-####操作  
+#### 操作  
 - `savePrivacySettings(userId:Long, profileVis:Integer, postVis:Integer, followVis:Integer)` - 保存隐私设置
 
 ### 6. 用户成就（UserAchievement）  
@@ -107,7 +107,7 @@
 | influencePoints | Integer | 影响力积分值 |
 | honorBadges | String | 荣誉勋章列表 |
 
-####操作
+#### 操作
 - `viewAchievements(userId:Long)` - 查看用户成就数据
 - `updatePostStatistics(userId:Long, postCountDelta:Integer, essenceDelta:Integer)` - 更新发帖统计数据
 
