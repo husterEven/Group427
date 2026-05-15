@@ -134,8 +134,7 @@
 | publishTime | Date | 发布时间 |
 | auditTime | Date | 审核时间 |
 
-**操作**
-
+#### 操作  
 - `publish(authorId:Long, title:String, content:String, sectionId:Integer, zoneId:Integer)` - 发布新帖子
 - `edit(postId:Long, newTitle:String, newContent:String)` - 编辑已发布的帖子
 - `delete(postId:Long, userId:Long)` - 删除帖子（用户或管理员）
@@ -147,10 +146,7 @@
 - `addFavorite(postId:Long, userId:Long)` - 增加收藏
 - `addShare(postId:Long, userId:Long)` - 增加转发
 
-### 2. 投票帖信息（VotePost）
-
-**属性**
-
+### 2. 投票帖信息（VotePost）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | voteId | Long | 投票唯一标识 |
@@ -163,16 +159,12 @@
 | endTime | Date | 投票结束时间 |
 | totalVoteCount | Integer | 总投票人数 |
 
-**操作**
-
+#### 操作  
 - `createVote(postId:Long, title:String, options:List<String>, duration:Integer, isAnonymous:Boolean)` - 创建投票
 - `castVote(voteId:Long, userId:Long, optionIndex:Integer)` - 参与投票
 - `viewVoteResult(voteId:Long)` - 查看投票结果统计
 
-### 3. 投票记录（VoteRecord）
-
-**属性**
-
+### 3. 投票记录（VoteRecord）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | recordId | Long | 投票记录唯一标识 |
@@ -181,14 +173,10 @@
 | selectedOptionIndex | Integer | 选择的选项索引 |
 | voteTime | Date | 投票时间 |
 
-**操作**
-
+#### 操作  
 - `recordVote(voteId:Long, userId:Long, optionIndex:Integer)` - 记录用户投票
 
-### 4. 附件（Attachment）
-
-**属性**
-
+### 4. 附件（Attachment）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | attachmentId | Long | 附件唯一标识 |
@@ -201,17 +189,13 @@
 | downloadCount | Integer | 下载次数 |
 | uploadTime | Date | 上传时间 |
 
-**操作**
-
+#### 操作  
 - `upload(postId:Long, file:MultipartFile, fileType:Integer)` - 上传附件
 - `audit(attachmentId:Long, auditorId:Long, status:Integer)` - 审核附件
 - `preview(attachmentId:Long)` - 在线预览附件
 - `download(attachmentId:Long, userId:Long)` - 下载附件
 
-### 5. 评论（Comment）
-
-**属性**
-
+### 5. 评论（Comment）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | commentId | Long | 评论唯一标识 |
@@ -225,17 +209,13 @@
 | publishTime | Date | 发布时间 |
 | atUserIds | String | @提醒的用户ID列表 |
 
-**操作**
-
+#### 操作  
 - `publishComment(postId:Long, authorId:Long, content:String, atUsers:List<Long>)` - 发表一级评论
 - `replyComment(parentCommentId:Long, postId:Long, authorId:Long, content:String)` - 回复评论（楼中楼）
 - `deleteComment(commentId:Long, userId:Long)` - 删除评论
 - `likeComment(commentId:Long, userId:Long)` - 点赞评论
 
-### 6. 用户互动记录（UserInteraction）
-
-**属性**
-
+### 6. 用户互动记录（UserInteraction）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | interactionId | Long | 互动记录唯一标识 |
@@ -245,16 +225,12 @@
 | interactionType | Integer | 互动类型（1-点赞，2-收藏，3-转发） |
 | createTime | Date | 互动时间 |
 
-**操作**
-
+#### 操作  
 - `recordLike(userId:Long, targetType:Integer, targetId:Long)` - 记录点赞
 - `recordFavorite(userId:Long, targetId:Long)` - 记录收藏
 - `cancelInteraction(userId:Long, targetType:Integer, targetId:Long, type:Integer)` - 取消互动
 
-### 7. 盘中实时动态（RealtimeDynamic）
-
-**属性**
-
+### 7. 盘中实时动态（RealtimeDynamic）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | dynamicId | Long | 动态唯一标识 |
@@ -265,17 +241,13 @@
 | commentCount | Integer | 评论数 |
 | publishTime | Date | 发布时间 |
 
-**操作**
-
+####操作  
 - `publishDynamic(authorId:Long, content:String, images:List<String>)` - 发布实时动态
 - `deleteDynamic(dynamicId:Long, userId:Long)` - 删除动态
 
 ## 三、板块与专区类
 
-### 1. 板块（Section）
-
-**属性**
-
+### 1. 板块（Section）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | sectionId | Integer | 板块唯一标识 |
@@ -286,17 +258,13 @@
 | status | Integer | 状态 |
 | createTime | Date | 创建时间 |
 
-**操作**
-
+#### 操作  
 - `addSection(name:String, type:Integer, description:String, order:Integer)` - 新增板块
 - `editSection(sectionId:Integer, name:String, description:String, order:Integer)` - 编辑板块信息
 - `deleteSection(sectionId:Integer)` - 删除板块
 - `reorder(sectionIds:List<Integer>)` - 调整板块排序
 
-### 2. 专区（Zone）
-
-**属性**
-
+### 2. 专区（Zone）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | zoneId | Integer | 专区唯一标识 |
@@ -307,18 +275,14 @@
 | postCount | Integer | 帖子数量 |
 | status | Integer | 状态 |
 
-**操作**
-
+#### 操作  
 - `createZone(name:String, sectionId:Integer, description:String, icon:String)` - 创建专区
 - `editZone(zoneId:Integer, name:String, description:String, icon:String)` - 编辑专区信息
 - `deleteZone(zoneId:Integer)` - 删除专区
 
 ## 四、社交关系类
 
-### 1. 关注关系（Follow）
-
-**属性**
-
+### 1. 关注关系（Follow）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | relationId | Long | 关注关系唯一标识 |
@@ -327,17 +291,13 @@
 | isStarred | Boolean | 是否设为星标 |
 | followTime | Date | 关注时间 |
 
-**操作**
-
+#### 操作  
 - `follow(followerId:Long, followeeId:Long)` - 关注用户
 - `unfollow(followerId:Long, followeeId:Long)` - 取消关注
 - `setStar(followerId:Long, followeeId:Long)` - 设为星标特别关注
 - `unsetStar(followerId:Long, followeeId:Long)` - 取消星标
 
-### 2. 私信（PrivateMessage）
-
-**属性**
-
+### 2. 私信（PrivateMessage）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | messageId | Long | 私信唯一标识 |
@@ -348,16 +308,12 @@
 | isRead | Boolean | 是否已读 |
 | sendTime | Date | 发送时间 |
 
-**操作**
-
+#### 操作  
 - `sendMessage(senderId:Long, receiverId:Long, contentType:Integer, content:String)` - 发送私信
 - `deleteMessage(messageId:Long, userId:Long)` - 删除私信
 - `markAsRead(messageId:Long, userId:Long)` - 标记私信为已读
 
-### 3. 群组（Group）
-
-**属性**
-
+### 3. 群组（Group）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | groupId | Long | 群组唯一标识 |
@@ -373,18 +329,14 @@
 | createTime | Date | 创建时间 |
 | auditTime | Date | 审核时间 |
 
-**操作**
-
+####操作  
 - `createGroup(ownerId:Long, name:String, description:String, tags:List<String>, mode:Integer)` - 创建群组
 - `editGroup(groupId:Long, name:String, description:String, tags:List<String>, mode:Integer)` - 编辑群组信息
 - `approveGroup(groupId:Long, auditorId:Long)` - 审核通过群组创建申请
 - `setGroupMode(groupId:Long, mode:Integer)` - 设置群组准入模式
 - `setMemberPermission(groupId:Long, role:Integer, permissions:Map<String,Boolean>)` - 设置成员发言权限
 
-### 4. 群组成员（GroupMember）
-
-**属性**
-
+### 4. 群组成员（GroupMember）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | memberId | Long | 成员关系唯一标识 |
@@ -395,8 +347,7 @@
 | isMuted | Boolean | 是否被禁言 |
 | joinTime | Date | 加入时间 |
 
-**操作**
-
+#### 操作  
 - `join(groupId:Long, userId:Long, joinType:Integer)` - 加入群组
 - `leave(groupId:Long, userId:Long)` - 退出群组
 - `invite(groupId:Long, inviterId:Long, inviteeId:Long)` - 邀请成员加入
@@ -404,10 +355,7 @@
 - `removeMember(groupId:Long, operatorId:Long, targetId:Long)` - 移除成员
 - `setAdmin(groupId:Long, operatorId:Long, targetId:Long, isAdmin:Boolean)` - 设置/取消管理员
 
-### 5. 群组帖子（GroupPost）
-
-**属性**
-
+### 5. 群组帖子（GroupPost）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | groupPostId | Long | 群组帖子唯一标识 |
@@ -419,18 +367,14 @@
 | commentCount | Integer | 评论数 |
 | publishTime | Date | 发布时间 |
 
-**操作**
-
+#### 操作  
 - `publishGroupPost(groupId:Long, authorId:Long, content:String, attachment:String)` - 发布群组帖子
 - `deleteGroupPost(groupPostId:Long, userId:Long)` - 删除群组帖子
 - `commentGroupPost(groupPostId:Long, userId:Long, content:String)` - 评论群组帖子
 
 ## 五、内容聚合与搜索类
 
-### 1. 热榜条目（HotTopic）
-
-**属性**
-
+### 1. 热榜条目（HotTopic）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | entryId | Long | 热榜条目唯一标识 |
@@ -443,15 +387,11 @@
 | interactionCount | Integer | 互动量 |
 | updateTime | Date | 更新时间 |
 
-**操作**
-
+#### 操作  
 - `calculateHeat(postCount:Integer, commentCount:Integer, likeCount:Integer, timeDecayFactor:Double)` - 计算内容热度值
 - `generateRanking(period:Integer, limit:Integer)` - 生成指定周期的热力榜单
 
-### 2. 用户行为记录（UserBehavior）
-
-**属性**
-
+### 2. 用户行为记录（UserBehavior）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | behaviorId | Long | 行为唯一标识 |
@@ -462,15 +402,11 @@
 | behaviorTime | Date | 行为时间 |
 | sessionId | String | 会话ID |
 
-**操作**
-
+#### 操作  
 - `record(userId:Long, behaviorType:Integer, targetId:Long, targetType:Integer)` - 记录用户行为
 - `analyzeProfile(userId:Long)` - 分析用户画像用于推荐
 
-### 3. 搜索记录（SearchRecord）
-
-**属性**
-
+### 3. 搜索记录（SearchRecord）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | searchId | Long | 搜索记录唯一标识 |
@@ -479,17 +415,13 @@
 | resultCount | Integer | 搜索结果数量 |
 | searchTime | Date | 搜索时间 |
 
-**操作**
-
+#### 操作  
 - `recordSearch(userId:Long, keyword:String, resultCount:Integer)` - 记录用户搜索行为
 - `getHotSearchKeywords(period:String, limit:Integer)` - 获取热门搜索关键词
 
 ## 六、管理运营类
 
-### 1. 审核队列（AuditQueue）
-
-**属性**
-
+### 1. 审核队列（AuditQueue）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | auditItemId | Long | 审核项唯一标识 |
@@ -503,17 +435,13 @@
 | rejectReason | String | 驳回原因 |
 | priority | Integer | 优先级 |
 
-**操作**
-
+#### 操作  
 - `enqueue(contentType:Integer, contentId:Long, userId:Long, priority:Integer)` - 将内容加入审核队列
 - `approve(auditItemId:Long, auditorId:Long)` - 审核通过内容
 - `reject(auditItemId:Long, auditorId:Long, reason:String)` - 审核驳回内容
 - `markSuspicious(auditItemId:Long, operatorId:Long)` - 标记为可疑内容进入人工复核
 
-### 2. 举报记录（Report）
-
-**属性**
-
+### 2. 举报记录（Report）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | reportId | Long | 举报唯一标识 |
@@ -527,15 +455,11 @@
 | reportTime | Date | 举报时间 |
 | handleTime | Date | 处理时间 |
 
-**操作**
-
+####操作  
 - `submit(reporterId:Long, targetType:Integer, targetId:Long, reason:String)` - 提交举报
 - `handle(reportId:Long, handlerId:Long, result:String, action:Integer)` - 处理举报并执行对应操作
 
-### 3. 敏感词库（SensitiveWord）
-
-**属性**
-
+### 3. 敏感词库（SensitiveWord）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | wordId | Long | 敏感词唯一标识 |
@@ -545,16 +469,12 @@
 | addTime | Date | 添加时间 |
 | addBy | Long | 添加人ID |
 
-**操作**
-
+#### 操作  
 - `addWord(word:String, wordType:Integer, severity:Integer, operatorId:Long)` - 添加敏感词
 - `removeWord(wordId:Long)` - 删除敏感词
 - `detect(content:String)` - 检测内容是否包含敏感词，返回命中列表
 
-### 4. 用户处罚记录（UserPunishment）
-
-**属性**
-
+### 4. 用户处罚记录（UserPunishment）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | punishmentId | Long | 处罚唯一标识 |
@@ -567,16 +487,12 @@
 | operatorId | Long | 操作管理员ID |
 | operateTime | Date | 操作时间 |
 
-**操作**
-
+#### 操作  
 - `apply(userId:Long, type:Integer, reason:String, durationDays:Integer, operatorId:Long)` - 对用户执行分级处罚
 - `lift(punishmentId:Long, operatorId:Long)` - 解除处罚
 - `queryHistory(userId:Long)` - 查询用户历史处罚记录
 
-### 5. 平台统计数据（PlatformStatistic）
-
-**属性**
-
+### 5. 平台统计数据（PlatformStatistic）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | statId | Long | 统计唯一标识 |
@@ -593,16 +509,12 @@
 | retentionRateDay7 | Double | 7日留存率 |
 | retentionRateDay30 | Double | 30日留存率 |
 
-**操作**
-
+#### 操作  
 - `calculateDau(date:Date)` - 计算指定日期日活跃用户数
 - `generateActivityReport(startDate:Date, endDate:Date)` - 生成时间段内的活跃度报告
 - `exportReport(reportType:String, dateRange:DateRange)` - 导出统计报表（Excel格式）
 
-### 6. 用户行为监控（UserBehaviorMonitor）
-
-**属性**
-
+### 6. 用户行为监控（UserBehaviorMonitor）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | monitorId | Long | 监控记录唯一标识 |
@@ -614,15 +526,11 @@
 | isSuspicious | Boolean | 是否异常标记 |
 | monitorTime | Date | 监控时间 |
 
-**操作**
-
+#### 操作  
 - `detectHighFrequencyUser(userId:Long, timeWindow:Integer)` - 检测指定时间窗口内的高频发帖/评论用户
 - `markSuspiciousAccount(userId:Long, operatorId:Long, reason:String)` - 标记异常账号供人工复核
 
-### 7. 运营操作日志（OperationLog）
-
-**属性**
-
+### 7. 运营操作日志（OperationLog）  
 | 属性名 | 类型 | 说明 |
 |--------|------|------|
 | logId | Long | 日志唯一标识 |
@@ -634,7 +542,6 @@
 | operateTime | Date | 操作时间 |
 | ipAddress | String | 操作IP地址 |
 
-**操作**
-
+#### 操作  
 - `logOperation(operatorId:Long, opType:Integer, targetType:String, targetId:Long, detail:String, ip:String)` - 记录管理员操作日志
 - `queryOperationHistory(operatorId:Long, startTime:Date, endTime:Date)` - 查询操作历史记录
