@@ -1,4 +1,515 @@
+股票基金投资论坛 - 架构设计与技术选型
+一、技术选型总览
+1.1 技术栈概览
+层级	技术选型	说明
+前端	Vue 3 + TypeScript + Vite	现代化响应式界面
+移动端	Uni-app	跨端小程序/H5/App
+后端	Spring Boot 3 + MyBatis-Plus	稳定高效的企业级框架
+缓存	Redis	会话、热点数据、排行榜
+数据库	MySQL 8.0	主数据存储
+搜索引擎	Elasticsearch	全文搜索
+消息队列	RocketMQ / RabbitMQ	异步处理、通知
+对象存储	MinIO / 阿里云OSS	图片、附件存储
+容器化	Docker + Docker Compose	开发部署环境
+二、后端架构设计
+2.1 整体架构图
+text
+┌─────────────────────────────────────────────────────────────┐
+│                        客户端层                              │
+│  Web端(Vue3) │ 小程序(Uni-app) │ H5 │ 管理后台               │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      网关层 (Spring Cloud Gateway)           │
+│              认证鉴权 │ 限流熔断 │ 日志记录                    │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────────┐
+│                      业务服务层                              │
+│ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐│
+│ │用户服务 │ │内容服务 │ │社交服务 │ │搜索服务 │ │管理服务 ││
+│ └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘│
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────────┐
+│                      中间件层                                │
+│  Redis │ ES │ RocketMQ │ MinIO │ WebSocket                   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────────┐
+│                      数据层                                  │
+│         MySQL(主从) │ 定时任务(XXL-JOB)                       │
+└─────────────────────────────────────────────────────────────┘
+2.2 模块划分
+text
+stock-forum-backend/
+├── forum-common/           # 公共模块
+│   ├── utils/              # 工具类
+│   ├── exception/          # 全局异常
+│   └── constants/          # 常量定义
+├── forum-api/              # API接口定义
+├── forum-user/             # 用户系统
+│   ├── controller/
+│   ├── service/
+│   ├── mapper/
+│   └── dto/
+├── forum-content/          # 内容系统
+│   ├── post/               # 帖子模块
+│   ├── comment/            # 评论模块
+│   ├──板块管理/            # 板块CRUD
+│   └── attachment/         # 附件管理
+├── forum-social/           # 社交系统
+│   ├── follow/             # 关注粉丝
+│   ├── group/              # 群组功能
+│   └── message/            # 私信系统
+├── forum-search/           # 搜索系统(ES)
+├── forum-admin/            # 管理运营系统
+│   ├── audit/              # 审核
+│   └── statistics/         # 数据分析
+└── forum-gateway/          # 网关
+三、核心数据库设计
+3.1 用户相关表
+sql
+-- 用户主表
+CREATE TABLE `user` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT,
+    `username` VARCHAR(50) NOT NULL COMMENT '用户名',
+    `phone` VARCHAR(20) COMMENT '手机号',
+    `email` VARCHAR(100) COMMENT '邮箱',
+    `password` VARCHAR(255) NOT NULL,
+    `real_name` VARCHAR(50) COMMENT '真实姓名',
+    `id_card` VARCHAR(18) COMMENT '身份证号',
+    `certification_level` TINYINT DEFAULT 0 COMMENT '0-普通 1-基础 2-实名 3-专业',
+    `certification_status` TINYINT DEFAULT 0 COMMENT '0-未认证 1-审核中 2-已认证 3-拒绝',
+    `professional_certs` JSON COMMENT '专业认证材料',
+    `risk_assessment` JSON COMMENT '风险评估问卷结果',
+    `create_time` DATETIME,
+    `update_time` DATETIME
+);
 
+-- 用户扩展信息表
+CREATE TABLE `user_profile` (
+    `user_id` BIGINT PRIMARY KEY,
+    `nickname` VARCHAR(50),
+    `avatar` VARCHAR(255),
+    `bio` VARCHAR(500),
+    `investment_tags` JSON COMMENT '投资经验标签',
+    `follow_markets` JSON COMMENT '关注的市场',
+    `risk_preference` VARCHAR(20) COMMENT '保守/稳健/进取',
+    `influence_score` INT DEFAULT 0 COMMENT '影响力值',
+    `privacy_settings` JSON COMMENT '隐私设置'
+);
+
+-- 用户成就表
+CREATE TABLE `user_achievement` (
+    `id` BIGINT PRIMARY KEY,
+    `user_id` BIGINT,
+    `achievement_type` VARCHAR(50),
+    `level` INT,
+    `earned_time` DATETIME
+);
+3.2 内容相关表
+sql
+-- 板块表（支持动态增删改）
+CREATE TABLE `forum_section` (
+    `id` BIGINT PRIMARY KEY,
+    `name` VARCHAR(50) NOT NULL,
+    `parent_id` BIGINT DEFAULT 0,
+    `section_type` VARCHAR(30) COMMENT 'market/theme/company/qa',
+    `description` VARCHAR(200),
+    `sort_order` INT,
+    `status` TINYINT DEFAULT 1,
+    `create_by` BIGINT,
+    `create_time` DATETIME
+);
+
+-- 帖子表
+CREATE TABLE `post` (
+    `id` BIGINT PRIMARY KEY,
+    `section_id` BIGINT NOT NULL,
+    `user_id` BIGINT NOT NULL,
+    `post_type` VARCHAR(20) COMMENT 'normal/long/vote/real_time',
+    `title` VARCHAR(200),
+    `content` LONGTEXT,
+    `content_rich` LONGTEXT COMMENT '富文本内容',
+    `vote_options` JSON COMMENT '投票选项',
+    `view_count` INT DEFAULT 0,
+    `like_count` INT DEFAULT 0,
+    `comment_count` INT DEFAULT 0,
+    `collect_count` INT DEFAULT 0,
+    `is_essence` TINYINT DEFAULT 0,
+    `is_top` TINYINT DEFAULT 0,
+    `status` TINYINT DEFAULT 1 COMMENT '1-正常 2-审核中 3-已删除',
+    `create_time` DATETIME,
+    `update_time` DATETIME,
+    INDEX idx_section_id (section_id),
+    INDEX idx_user_id (user_id),
+    FULLTEXT idx_title_content (title, content)
+);
+
+-- 评论表（支持楼中楼）
+CREATE TABLE `comment` (
+    `id` BIGINT PRIMARY KEY,
+    `post_id` BIGINT NOT NULL,
+    `user_id` BIGINT NOT NULL,
+    `parent_id` BIGINT DEFAULT 0 COMMENT '父评论ID，0表示一级评论',
+    `reply_to_user_id` BIGINT COMMENT '@回复的用户',
+    `content` TEXT,
+    `like_count` INT DEFAULT 0,
+    `status` TINYINT DEFAULT 1,
+    `create_time` DATETIME,
+    INDEX idx_post_id (post_id),
+    INDEX idx_parent_id (parent_id)
+);
+
+-- 附件审核表
+CREATE TABLE `attachment` (
+    `id` BIGINT PRIMARY KEY,
+    `user_id` BIGINT,
+    `post_id` BIGINT,
+    `file_name` VARCHAR(200),
+    `file_url` VARCHAR(500),
+    `file_size` INT,
+    `file_type` VARCHAR(50),
+    `audit_status` TINYINT DEFAULT 0,
+    `audit_result` VARCHAR(200),
+    `create_time` DATETIME
+);
+3.3 社交关系表
+sql
+-- 关注关系表
+CREATE TABLE `user_follow` (
+    `id` BIGINT PRIMARY KEY,
+    `user_id` BIGINT NOT NULL COMMENT '关注者',
+    `follow_user_id` BIGINT NOT NULL COMMENT '被关注者',
+    `is_star` TINYINT DEFAULT 0 COMMENT '是否特别关注',
+    `create_time` DATETIME,
+    UNIQUE KEY uk_user_follow (user_id, follow_user_id)
+);
+
+-- 群组表
+CREATE TABLE `group_info` (
+    `id` BIGINT PRIMARY KEY,
+    `name` VARCHAR(50),
+    `avatar` VARCHAR(255),
+    `description` VARCHAR(500),
+    `visibility` TINYINT DEFAULT 1 COMMENT '1-公开 2-私密 3-审核加入',
+    `owner_id` BIGINT,
+    `member_count` INT DEFAULT 1,
+    `create_time` DATETIME
+);
+
+-- 群组成员表
+CREATE TABLE `group_member` (
+    `id` BIGINT PRIMARY KEY,
+    `group_id` BIGINT,
+    `user_id` BIGINT,
+    `role` TINYINT DEFAULT 0 COMMENT '0-成员 1-管理员 2-群主',
+    `join_time` DATETIME
+);
+3.4 管理运营表
+sql
+-- 违规记录表
+CREATE TABLE `violation_record` (
+    `id` BIGINT PRIMARY KEY,
+    `user_id` BIGINT,
+    `content_type` VARCHAR(20) COMMENT 'post/comment',
+    `content_id` BIGINT,
+    `violation_type` VARCHAR(50),
+    `action` VARCHAR(20) COMMENT 'warn/mute/ban',
+    `action_duration` INT COMMENT '禁言时长(小时)',
+    `handler_id` BIGINT,
+    `create_time` DATETIME
+);
+
+-- 操作日志表
+CREATE TABLE `operation_log` (
+    `id` BIGINT PRIMARY KEY,
+    `user_id` BIGINT,
+    `operation` VARCHAR(50),
+    `target_type` VARCHAR(30),
+    `target_id` BIGINT,
+    `ip_address` VARCHAR(45),
+    `create_time` DATETIME,
+    INDEX idx_user_id (user_id)
+);
+四、Redis缓存设计
+4.1 缓存Key设计
+java
+// 用户会话
+"session:token:{token}"           // 用户登录信息，过期7天
+
+// 帖子相关
+"post:detail:{postId}"              // 帖子详情，过期30分钟
+"post:like:{userId}:{postId}"       // 用户点赞记录，Set结构
+"post:hot:section:{sectionId}"      // 板块热门帖子，ZSet，按分数排序
+
+// 排行榜
+"rank:daily:like"                   // 日点赞榜
+"rank:weekly:hot"                   // 周热帖榜
+"rank:influence"                    // 影响力榜
+
+// 用户相关
+"user:info:{userId}"                // 用户基本信息
+"user:profile:{userId}"             // 用户扩展信息
+"user:followers:{userId}"           // 粉丝列表（分页缓存）
+"user:following:{userId}"           // 关注列表
+
+// 计数统计
+"counter:post:view:{postId}"        // 帖子浏览量
+"counter:user:influence:{userId}"   // 用户影响力值
+
+// 限流
+"rate:limit:{userId}:{action}"      // 用户操作频率限制
+4.2 缓存更新策略
+数据类型	过期策略	更新方式
+帖子详情	30分钟 + 访问触发延长	写时删除，读时重建
+排行榜	每天/每周定时重建	定时任务刷新
+用户信息	1小时	写时更新
+计数器	不自动过期	每次操作递增，定时持久化到DB
+五、搜索设计(Elasticsearch)
+5.1 索引映射
+json
+{
+  "post_index": {
+    "mappings": {
+      "properties": {
+        "id": {"type": "long"},
+        "title": {"type": "text", "analyzer": "ik_max_word"},
+        "content": {"type": "text", "analyzer": "ik_max_word"},
+        "section_id": {"type": "integer"},
+        "user_id": {"type": "long"},
+        "user_nickname": {"type": "keyword"},
+        "create_time": {"type": "date"},
+        "like_count": {"type": "integer"},
+        "comment_count": {"type": "integer"},
+        "is_essence": {"type": "boolean"},
+        "status": {"type": "byte"}
+      }
+    }
+  },
+  "user_index": {
+    "mappings": {
+      "properties": {
+        "id": {"type": "long"},
+        "nickname": {"type": "text", "analyzer": "ik_smart"},
+        "bio": {"type": "text", "analyzer": "ik_smart"},
+        "investment_tags": {"type": "keyword"}
+      }
+    }
+  }
+}
+5.2 搜索流程
+text
+用户搜索 → 调用搜索服务 → ES检索 → 聚合高亮 → 
+从Redis/MySQL补充详情 → 返回结果
+六、关键接口设计
+6.1 RESTful API示例
+java
+// 帖子相关接口
+@RestController
+@RequestMapping("/api/v1/posts")
+public class PostController {
+    
+    // 发布帖子
+    @PostMapping
+    public Result<Long> createPost(@RequestBody @Valid PostCreateDTO dto) {
+        // 权限校验、敏感词过滤、异步审核
+    }
+    
+    // 获取帖子详情
+    @GetMapping("/{id}")
+    public Result<PostDetailVO> getPost(@PathVariable Long id) {
+        // 增加浏览量、缓存读取、关联数据聚合
+    }
+    
+    // 获取板块帖子列表（支持分页、排序）
+    @GetMapping("/section/{sectionId}")
+    public Result<PageResult<PostListVO>> getPostsBySection(
+        @PathVariable Long sectionId,
+        @RequestParam(defaultValue = "1") int page,
+        @RequestParam(defaultValue = "20") int size,
+        @RequestParam(defaultValue = "hot") String orderBy) {
+        // 热点帖走Redis ZSet，普通帖走MySQL分页
+    }
+    
+    // 点赞
+    @PostMapping("/{id}/like")
+    public Result<Void> likePost(@PathVariable Long id) {
+        // Redis Set记录+计数，异步同步到MySQL
+    }
+}
+
+// 板块管理接口
+@RestController
+@RequestMapping("/api/v1/admin/sections")
+public class SectionAdminController {
+    
+    // 动态添加板块
+    @PostMapping
+    public Result<Void> addSection(@RequestBody @Valid SectionCreateDTO dto) {
+        // 管理员权限校验、板块创建、清除板块缓存
+    }
+    
+    // 修改板块
+    @PutMapping("/{id}")
+    public Result<Void> updateSection(@PathVariable Long id, @RequestBody SectionUpdateDTO dto) {
+        // 权限校验、更新数据库、清除相关缓存
+    }
+    
+    // 删除板块（软删除）
+    @DeleteMapping("/{id}")
+    public Result<Void> deleteSection(@PathVariable Long id) {
+        // 检查板块下是否有帖子、软删除或转移帖子
+    }
+}
+6.2 WebSocket实时消息
+java
+@ServerEndpoint("/ws/{userId}")
+public class WebSocketServer {
+    
+    // 实时讨论消息
+    @OnMessage
+    public void onMessage(String message, Session session) {
+        // 解析消息 -> 发送到指定房间（板块）
+    }
+    
+    // 通知推送（点赞、评论、关注）
+    public void sendNotification(Long userId, NotificationDTO notification) {
+        // 向指定用户推送实时通知
+    }
+}
+七、关键功能实现思路
+7.1 审核流程
+text
+用户发布内容 → 敏感词自动过滤(AC自动机) → 
+通过 → 发布成功，更新ES
+包含敏感词 → 进入人工审核队列 → 
+审核通过 → 发布
+审核不通过 → 退回+通知用户
+7.2 热榜算法
+java
+// 综合热度 = (点赞数 * 2 + 评论数 * 3 + 收藏数 * 1.5) / 
+//          (发布时间距现在的小时数 + 2)^1.2
+public double calculateHotScore(int likeCount, int commentCount, 
+                                 int collectCount, LocalDateTime createTime) {
+    long hours = ChronoUnit.HOURS.between(createTime, LocalDateTime.now());
+    double interactionScore = likeCount * 2.0 + commentCount * 3.0 + collectCount * 1.5;
+    double timeDecay = Math.pow(hours + 2, 1.2);
+    return interactionScore / timeDecay;
+}
+7.3 投资者适当性评估（问卷积分制）
+java
+public int evaluateRiskLevel(Map<String, Object> answers) {
+    // 题目权重配置
+    int totalScore = 0;
+    // 问题1: 投资经验（0-20分）
+    // 问题2: 可承受亏损（0-30分）
+    // 问题3: 投资期限（0-20分）
+    // 问题4: 收入稳定性（0-30分）
+    
+    // 总分<40: 保守型 C1
+    // 40-60: 稳健型 C2
+    // 60-80: 平衡型 C3
+    // 80-100: 进取型 C4
+    return totalScore;
+}
+八、部署架构
+8.1 Docker Compose配置
+yaml
+version: '3.8'
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+    volumes:
+      - mysql_data:/var/lib/mysql
+      
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    
+  elasticsearch:
+    image: elasticsearch:8.10.0
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    
+  rocketmq:
+    image: apache/rocketmq:5.0.0
+    
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql
+      - redis
+      - elasticsearch
+8.2 开发环境要求
+工具	版本	用途
+JDK	17+	后端运行环境
+Maven	3.8+	项目构建
+Node.js	18+	前端构建
+MySQL	8.0+	数据库
+Redis	7.0+	缓存
+IDE	IDEA / VS Code	开发工具
+九、项目结构（前端）
+text
+stock-forum-frontend/
+├── public/
+├── src/
+│   ├── api/               # API接口
+│   │   ├── user.ts
+│   │   ├── post.ts
+│   │   └── section.ts
+│   ├── assets/            # 静态资源
+│   ├── components/        # 公共组件
+│   │   ├── PostCard.vue
+│   │   ├── CommentTree.vue
+│   │   └── RichEditor.vue
+│   ├── views/             # 页面视图
+│   │   ├── home/          # 首页
+│   │   ├── forum/         # 论坛板块
+│   │   ├── post/          # 帖子详情
+│   │   ├── user/          # 用户中心
+│   │   └── admin/         # 管理后台
+│   ├── router/            # 路由配置
+│   ├── stores/            # Pinia状态管理
+│   ├── utils/             # 工具函数
+│   └── main.ts
+├── package.json
+└── vite.config.ts
+十、开发建议与注意事项
+10.1 优先级划分
+优先级	功能模块	说明
+P0	用户注册登录、发帖评论、板块浏览	MVP核心功能
+P1	点赞收藏、关注粉丝、搜索	社交互动
+P2	私信系统、群组功能、排行榜	增强功能
+P3	专业认证、风险评估、数据分析	进阶功能
+10.2 技术难点及应对
+难点	解决方案
+高并发点赞	Redis计数 + 定时批量落库
+全文搜索	Elasticsearch + IK分词
+楼中楼评论	递归查询或使用闭包表模型
+实时讨论	WebSocket + 消息队列
+敏感词过滤	AC自动机 + 前缀树
+10.3 安全考虑
+用户密码使用BCrypt加密存储
+
+敏感接口限流（发帖、评论限制频率）
+
+XSS过滤、SQL防注入
+
+身份证/人脸信息脱敏存储
+
+附件上传类型和大小限制
 # 股票基金投资论坛 - 架构设计（纯设计，无代码）
 一、技术选型总览
 1.1 技术栈决策
