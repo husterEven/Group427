@@ -10,6 +10,8 @@
 郑逸文 更新了gitignore文件  
 郑逸文 完善了ai.md的内容  
 许羿祖 完善了uses_cases.md的内容  
-
+许羿祖 完善了uses_stories.md的内容  
 ##  模块二
 张敬坤 根据提示词向AI进行询问，明确了架构设计和技术选型  
+张敬坤 创建了archiect.md，使用AI提取类及其属性和操作，并迭代优化  
+郑逸文 完善了ai.md的内容 
