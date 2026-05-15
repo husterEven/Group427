@@ -455,7 +455,7 @@
 | reportTime | Date | 举报时间 |
 | handleTime | Date | 处理时间 |
 
-####操作  
+#### 操作  
 - `submit(reporterId:Long, targetType:Integer, targetId:Long, reason:String)` - 提交举报
 - `handle(reportId:Long, handlerId:Long, result:String, action:Integer)` - 处理举报并执行对应操作
 
