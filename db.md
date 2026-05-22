@@ -18,8 +18,9 @@
  |  关注表漏洞      | follow 表未阻止用户关注自己的异常数据                                           | 添加 CHECK 约束 `follower_id <> followee_id`（需 MySQL 8.0.16+）                             |
  |  私信表漏洞      | private_message 表未阻止用户给自己发私信                                       | 添加 CHECK 约束 `sender_id <> receiver_id`（需 MySQL 8.0.16+）                               |  
  
- 二、数据库创建与表结构定义
-表 1：user（用户表）—— 存储所有注册用户的基本信息与安全凭证
+ # 二、数据库创建与表结构定义  
+ 
+## 表 1：user（用户表）—— 存储所有注册用户的基本信息与安全凭证
  | 字段名             | 类型          | 约束                             | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
  | user_id            | BIGINT        | NOT NULL AUTO_INCREMENT, PRIMARY KEY | —                | 用户ID（主键，自增） |
@@ -39,7 +40,7 @@
  | created_at         | DATETIME      | NOT NULL                        | CURRENT_TIMESTAMP   | 注册时间 |
  | updated_at         | DATETIME      | NOT NULL                        | CURRENT_TIMESTAMP ON UPDATE | 最后更新时间 |
 
- 表 2：user_verification（用户认证记录表）—— 存储用户的实名/资质认证申请记录
+ ## 表 2：user_verification（用户认证记录表）—— 存储用户的实名/资质认证申请记录
  
  | 字段名            | 类型     | 约束                                      | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -50,7 +51,7 @@
  | created_at        | DATETIME | NOT NULL                                  | CURRENT_TIMESTAMP   | 申请时间 |
 
  
- 表 3：risk_assessment_answer（风险评估答案表）—— 用户的风险承受能力测评结果，1:1 关联 user
+ ## 表 3：risk_assessment_answer（风险评估答案表）—— 用户的风险承受能力测评结果，1:1 关联 user
  
  | 字段名         | 类型        | 约束                                      | 默认值 | 说明 |
   | :---: | :---: | :---: |:---: |:---: |
@@ -60,7 +61,7 @@
  | complete_time  | DATETIME    | NOT NULL                                  | —      | 测评完成时间 |
 
  
- 表 4：user_preference（用户偏好表）—— 用户关注的市场与风险偏好，1:1 关联 user
+ ## 表 4：user_preference（用户偏好表）—— 用户关注的市场与风险偏好，1:1 关联 user
  
  | 字段名         | 类型         | 约束                                      | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -72,7 +73,7 @@
  | updated_at     | DATETIME     | NOT NULL                                  | CURRENT_TIMESTAMP   | 最后更新时间 |
 
  
- 表 5：privacy_setting（隐私设置表）—— 用户个人资料的可见性设置，1:1 关联 user
+ ## 表 5：privacy_setting（隐私设置表）—— 用户个人资料的可见性设置，1:1 关联 user
  
  | 字段名             | 类型     | 约束                                      | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -82,7 +83,7 @@
  | updated_at         | DATETIME | NOT NULL                                  | CURRENT_TIMESTAMP   | 最后更新时间 |
 
  
- 表 6：user_achievement（用户成就表）—— 统计用户累计发帖与精华帖数量，1:1 关联 user
+ ## 表 6：user_achievement（用户成就表）—— 统计用户累计发帖与精华帖数量，1:1 关联 user
  
  | 字段名             | 类型     | 约束                                      | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -93,7 +94,7 @@
  | updated_at         | DATETIME | NOT NULL                                  | CURRENT_TIMESTAMP   | 最后更新时间 |
 
  
- 表 7：section（板块表）—— 论坛的一级栏目分类
+ ## 表 7：section（板块表）—— 论坛的一级栏目分类
  
  | 字段名        | 类型        | 约束                             | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -104,7 +105,7 @@
  | created_at    | DATETIME    | NOT NULL                        | CURRENT_TIMESTAMP   | 创建时间 |
 
  
- 表 8：zone（分区表）—— 板块下的二级分类，作为 section 的子级
+##  表 8：zone（分区表）—— 板块下的二级分类，作为 section 的子级
  
  | 字段名     | 类型        | 约束                                       | 默认值              | 说明 |
   | :---: | :---: | :---: |:---: |:---: |
@@ -115,7 +116,7 @@
  | created_at | DATETIME    | NOT NULL                                   | CURRENT_TIMESTAMP   | 创建时间 |
 
  
- 表 9：post（帖子表）—— 论坛核心内容实体，存储用户发布的帖子正文与元数据
+ ## 表 9：post（帖子表）—— 论坛核心内容实体，存储用户发布的帖子正文与元数据
  
  | 字段名         | 类型          | 约束                                        | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -138,7 +139,7 @@
  | updated_at     | DATETIME      | NOT NULL                                    | CURRENT_TIMESTAMP   | 最后更新时间 |
 
  
- 表 10：comment（评论表）—— 帖子下的评论与回复，支持楼中楼嵌套（自关联）
+##  表 10：comment（评论表）—— 帖子下的评论与回复，支持楼中楼嵌套（自关联）
  
  | 字段名            | 类型     | 约束                                         | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -151,7 +152,7 @@
  | is_deleted        | TINYINT(1)| NOT NULL                                    | 0                   | 软删除标记（0正常 1已删除） |
  | publish_time      | DATETIME | NOT NULL                                     | CURRENT_TIMESTAMP   | 评论发布时间 |
 
- 表 11：vote_post（投票帖子表）—— 帖子的投票扩展信息，与 post 为 1:1 关系
+##  表 11：vote_post（投票帖子表）—— 帖子的投票扩展信息，与 post 为 1:1 关系
  
  | 字段名     | 类型         | 约束                                       | 默认值 | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -161,7 +162,7 @@
  | end_time   | DATETIME     | NOT NULL                                   | —      | 投票截止时间 |
 
  
- 表 12：vote_record（投票记录表）—— 用户在某投票中的具体投票选择
+ ## 表 12：vote_record（投票记录表）—— 用户在某投票中的具体投票选择
  
  | 字段名       | 类型     | 约束                                            | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -172,7 +173,7 @@
  | vote_time    | DATETIME | NOT NULL                                        | CURRENT_TIMESTAMP   | 投票时间 |
 
  
- 表 13：attachment（附件表）—— 帖子中包含的附件文件（图片、文档、视频等）
+##  表 13：attachment（附件表）—— 帖子中包含的附件文件（图片、文档、视频等）
  
  | 字段名         | 类型         | 约束                                       | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -184,7 +185,7 @@
  | created_at     | DATETIME     | NOT NULL                                   | CURRENT_TIMESTAMP   | 上传时间 |
 
  
- 表 14：realtime_dynamic（实时动态表）—— 用户的短动态，类似微博/朋友圈
+##  表 14：realtime_dynamic（实时动态表）—— 用户的短动态，类似微博/朋友圈
  
  | 字段名       | 类型     | 约束                                       | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -196,7 +197,7 @@
  | publish_time | DATETIME | NOT NULL                                   | CURRENT_TIMESTAMP   | 发布时间 |
 
  
- 表 15：follow（关注表）—— 用户之间的关注/粉丝关系
+ ## 表 15：follow（关注表）—— 用户之间的关注/粉丝关系
  
  | 字段名      | 类型      | 约束                                            | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -207,7 +208,7 @@
  | created_at  | DATETIME  | NOT NULL                                       | CURRENT_TIMESTAMP   | 关注时间 |
 
  
- 表 16：private_message（私信表）—— 用户之间的一对一私信消息
+ ## 表 16：private_message（私信表）—— 用户之间的一对一私信消息
  
  | 字段名      | 类型      | 约束                                            | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -218,9 +219,9 @@
  | is_read     | TINYINT(1)| NOT NULL                                       | 0                   | 是否已读（0未读 1已读） |
  | is_deleted  | TINYINT(1)| NOT NULL                                       | 0                   | 软删除标记（0正常 1已删除） |
  | send_time   | DATETIME  | NOT NULL                                       | CURRENT_TIMESTAMP   | 发送时间 |
-C
+
  
- 表 17：group_info（群组表）—— 用户创建的群组信息（GROUP 是 SQL 保留字，故命名为 group_info）
+ ## 表 17：group_info（群组表）—— 用户创建的群组信息（GROUP 是 SQL 保留字，故命名为 group_info）
  
  | 字段名     | 类型         | 约束                                       | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -233,7 +234,7 @@ C
  | updated_at | DATETIME     | NOT NULL                                   | CURRENT_TIMESTAMP   | 最后更新时间 |
 
  
- 表 18：group_member（群组成员表）—— 群组与用户的多对多成员关系
+##  表 18：group_member（群组成员表）—— 群组与用户的多对多成员关系
  
  | 字段名    | 类型     | 约束                                            | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -244,7 +245,7 @@ C
  | joined_at | DATETIME | NOT NULL                                       | CURRENT_TIMESTAMP   | 加入时间 |
 
  
- 表 19：group_post（群帖子表）—— 群组内部的帖子，仅群成员可见
+ ## 表 19：group_post（群帖子表）—— 群组内部的帖子，仅群成员可见
  
  | 字段名        | 类型     | 约束                                       | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -257,7 +258,7 @@ C
  | publish_time  | DATETIME | NOT NULL                                   | CURRENT_TIMESTAMP   | 发布时间 |
 
  
- 表 20：audit_queue（审核队列表）—— 待审核内容的统一队列，供审核人员处理
+ ## 表 20：audit_queue（审核队列表）—— 待审核内容的统一队列，供审核人员处理
  
  | 字段名         | 类型         | 约束                             | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -271,7 +272,7 @@ C
  | audited_at     | DATETIME     | DEFAULT NULL                    | NULL                | 审核完成时间 |
 
  
- 表 21：report（举报表）—— 用户对违规内容的举报记录，支持处理闭环
+ ## 表 21：report（举报表）—— 用户对违规内容的举报记录，支持处理闭环
  
  | 字段名        | 类型         | 约束                                       | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -287,7 +288,7 @@ C
  | handled_at    | DATETIME     | DEFAULT NULL                               | NULL                | 处理完成时间 |
 
  
- 表 22：user_punishment（用户处罚表）—— 管理员对违规用户实施的处罚记录
+ ## 表 22：user_punishment（用户处罚表）—— 管理员对违规用户实施的处罚记录
  
  | 字段名          | 类型         | 约束                                       | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -301,7 +302,7 @@ C
  | expire_at       | DATETIME     | DEFAULT NULL                               | NULL                | 处罚到期时间 |
 
  
- 表 23：user_behavior（用户行为表）—— 记录用户的关键操作日志，用于行为分析与风控
+ ## 表 23：user_behavior（用户行为表）—— 记录用户的关键操作日志，用于行为分析与风控
  
  | 字段名        | 类型     | 约束                                       | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -312,7 +313,7 @@ C
  | created_at    | DATETIME | NOT NULL                                   | CURRENT_TIMESTAMP   | 行为发生时间 |
 
  
- 表 24：post_collect（帖子收藏表）—— 用户收藏帖子的关系（新增）
+ ## 表 24：post_collect（帖子收藏表）—— 用户收藏帖子的关系（新增）
  
  | 字段名      | 类型     | 约束                                            | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
@@ -322,7 +323,7 @@ C
  | created_at  | DATETIME | NOT NULL                                       | CURRENT_TIMESTAMP   | 收藏时间 |
 
  
- 表 25：notification（消息通知表）—— 系统消息推送，支持多种通知类型（新增）
+##  表 25：notification（消息通知表）—— 系统消息推送，支持多种通知类型（新增）
  
  | 字段名          | 类型         | 约束                                       | 默认值              | 说明 |
  | :---: | :---: | :---: |:---: |:---: |
