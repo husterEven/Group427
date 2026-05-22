@@ -60,3 +60,11 @@
 - registerByMobile(mobile:String, verificationCode:String, password:String) - 通过手机号和验证码完成账号注册
 - registerByEmail(email:String, password:String, emailCode:String) - 通过邮箱和验证码完成账号注册
 - thirdPartyLogin(platform:String, authCode:String) - 通过微信/微博第三方授权完成登录
+## 我的输入二  
+【省略上文】基于前后端分离原则，生成后端RESTful API接口文档模板  
+## AI输出可能问题
+-缺少错误响应 Schema，仅描述 description，无结构化错误体  
+-VoteDetail 缺少分选项统计，VotePost仅返回选项字符串列表  
+## 迭代优化解决方案
+-新增 ErrorResponse schema + 5 种 components/responses 复用组件（400/401/403/404/500）  
+-新增 VoteOption schema（含 count/percentage/isSelected）；VoteDetail 替代原 VotePost
