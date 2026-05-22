@@ -522,3 +522,329 @@
 | section:tree | String(JSON) | 1小时 | 板块树结构 |
 | user:session:{token} | String(JSON) | 7天 | 登录会话 |
 
+# database.init.sql
+-- ============================================
+-- 社区论坛系统 - 数据库初始化脚本
+-- 基于 ER 图自动生成
+-- ============================================
+
+CREATE DATABASE IF NOT EXISTS community_forum
+    DEFAULT CHARACTER SET utf8mb4
+    DEFAULT COLLATE utf8mb4_unicode_ci;
+
+USE community_forum;
+
+-- ============================================
+-- 1. 核心用户模块
+-- ============================================
+
+CREATE TABLE user (
+    user_id             BIGINT       NOT NULL AUTO_INCREMENT,
+    nickname            VARCHAR(50)  NOT NULL,
+    mobile              VARCHAR(20)  DEFAULT NULL,
+    email               VARCHAR(100) DEFAULT NULL,
+    verification_level  INT          NOT NULL DEFAULT 0,
+    points              INT          NOT NULL DEFAULT 0,
+    level               INT          NOT NULL DEFAULT 1,
+    is_banned           TINYINT(1)   NOT NULL DEFAULT 0,
+    created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id),
+    UNIQUE KEY uk_mobile (mobile),
+    UNIQUE KEY uk_email  (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE user_verification (
+    record_id         BIGINT  NOT NULL AUTO_INCREMENT,
+    user_id           BIGINT  NOT NULL,
+    verification_type INT     NOT NULL,
+    audit_status      INT     NOT NULL DEFAULT 0,
+    created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (record_id),
+    KEY idx_user_id     (user_id),
+    KEY idx_audit_status (audit_status),
+    CONSTRAINT fk_uv_user FOREIGN KEY (user_id) REFERENCES user (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE risk_assessment_answer (
+    answer_id     BIGINT      NOT NULL AUTO_INCREMENT,
+    user_id       BIGINT      NOT NULL,
+    result_level  VARCHAR(20) NOT NULL,
+    complete_time DATETIME    NOT NULL,
+    PRIMARY KEY (answer_id),
+    UNIQUE KEY uk_user_id (user_id),
+    CONSTRAINT fk_raa_user FOREIGN KEY (user_id) REFERENCES user (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE user_preference (
+    preference_id BIGINT       NOT NULL AUTO_INCREMENT,
+    user_id       BIGINT       NOT NULL,
+    focus_markets VARCHAR(255) DEFAULT NULL,
+    risk_type     VARCHAR(50)  DEFAULT NULL,
+    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (preference_id),
+    UNIQUE KEY uk_user_id (user_id),
+    CONSTRAINT fk_up_user FOREIGN KEY (user_id) REFERENCES user (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE privacy_setting (
+    setting_id        BIGINT  NOT NULL AUTO_INCREMENT,
+    user_id           BIGINT  NOT NULL,
+    profile_visibility INT    NOT NULL DEFAULT 0,
+    updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (setting_id),
+    UNIQUE KEY uk_user_id (user_id),
+    CONSTRAINT fk_ps_user FOREIGN KEY (user_id) REFERENCES user (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE user_achievement (
+    achievement_id    BIGINT  NOT NULL AUTO_INCREMENT,
+    user_id           BIGINT  NOT NULL,
+    total_post_count  INT     NOT NULL DEFAULT 0,
+    essence_post_count INT    NOT NULL DEFAULT 0,
+    updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (achievement_id),
+    UNIQUE KEY uk_user_id (user_id),
+    CONSTRAINT fk_ua_user FOREIGN KEY (user_id) REFERENCES user (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- 2. 板块与分区
+-- ============================================
+
+CREATE TABLE section (
+    section_id   INT         NOT NULL AUTO_INCREMENT,
+    section_name VARCHAR(50) NOT NULL,
+    section_type INT         NOT NULL,
+    sort_order   INT         NOT NULL DEFAULT 0,
+    created_at   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (section_id),
+    UNIQUE KEY uk_section_name (section_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE zone (
+    zone_id    INT         NOT NULL AUTO_INCREMENT,
+    zone_name  VARCHAR(50) NOT NULL,
+    section_id INT         NOT NULL,
+    sort_order INT         NOT NULL DEFAULT 0,
+    created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (zone_id),
+    KEY idx_section_id (section_id),
+    CONSTRAINT fk_zone_section FOREIGN KEY (section_id) REFERENCES section (section_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- 3. 内容模块
+-- ============================================
+
+CREATE TABLE post (
+    post_id       BIGINT       NOT NULL AUTO_INCREMENT,
+    author_id     BIGINT       NOT NULL,
+    title         VARCHAR(200) NOT NULL,
+    content_type  INT          NOT NULL,
+    section_id    INT          DEFAULT NULL,
+    zone_id       INT          DEFAULT NULL,
+    audit_status  INT          NOT NULL DEFAULT 0,
+    like_count    INT          NOT NULL DEFAULT 0,
+    publish_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (post_id),
+    KEY idx_author_id    (author_id),
+    KEY idx_section_id   (section_id),
+    KEY idx_zone_id      (zone_id),
+    KEY idx_audit_status (audit_status),
+    KEY idx_publish_time (publish_time),
+    CONSTRAINT fk_post_author  FOREIGN KEY (author_id)  REFERENCES user (user_id)       ON DELETE CASCADE,
+    CONSTRAINT fk_post_section FOREIGN KEY (section_id) REFERENCES section (section_id) ON DELETE SET NULL,
+    CONSTRAINT fk_post_zone    FOREIGN KEY (zone_id)    REFERENCES zone (zone_id)       ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE comment (
+    comment_id        BIGINT   NOT NULL AUTO_INCREMENT,
+    post_id           BIGINT   NOT NULL,
+    parent_comment_id BIGINT   DEFAULT NULL,
+    author_id         BIGINT   NOT NULL,
+    content           TEXT     NOT NULL,
+    publish_time      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (comment_id),
+    KEY idx_post_id          (post_id),
+    KEY idx_parent_comment_id (parent_comment_id),
+    KEY idx_author_id        (author_id),
+    CONSTRAINT fk_comment_post   FOREIGN KEY (post_id)           REFERENCES post (post_id)       ON DELETE CASCADE,
+    CONSTRAINT fk_comment_parent FOREIGN KEY (parent_comment_id) REFERENCES comment (comment_id) ON DELETE CASCADE,
+    CONSTRAINT fk_comment_author FOREIGN KEY (author_id)         REFERENCES user (user_id)       ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE vote_post (
+    vote_id    BIGINT       NOT NULL AUTO_INCREMENT,
+    post_id    BIGINT       NOT NULL,
+    vote_title VARCHAR(200) NOT NULL,
+    end_time   DATETIME     NOT NULL,
+    PRIMARY KEY (vote_id),
+    UNIQUE KEY uk_post_id (post_id),
+    CONSTRAINT fk_vote_post FOREIGN KEY (post_id) REFERENCES post (post_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE vote_record (
+    record_id    BIGINT   NOT NULL AUTO_INCREMENT,
+    vote_id      BIGINT   NOT NULL,
+    user_id      BIGINT   NOT NULL,
+    option_index INT      NOT NULL,
+    vote_time    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (record_id),
+    UNIQUE KEY uk_vote_user (vote_id, user_id),
+    KEY idx_user_id (user_id),
+    CONSTRAINT fk_vr_vote FOREIGN KEY (vote_id) REFERENCES vote_post (vote_id) ON DELETE CASCADE,
+    CONSTRAINT fk_vr_user FOREIGN KEY (user_id) REFERENCES user (user_id)      ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE attachment (
+    attachment_id BIGINT       NOT NULL AUTO_INCREMENT,
+    post_id       BIGINT       NOT NULL,
+    file_name     VARCHAR(255) NOT NULL,
+    file_type     INT          NOT NULL,
+    audit_status  INT          NOT NULL DEFAULT 0,
+    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (attachment_id),
+    KEY idx_post_id      (post_id),
+    KEY idx_audit_status (audit_status),
+    CONSTRAINT fk_att_post FOREIGN KEY (post_id) REFERENCES post (post_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE realtime_dynamic (
+    dynamic_id   BIGINT   NOT NULL AUTO_INCREMENT,
+    author_id    BIGINT   NOT NULL,
+    content      TEXT     NOT NULL,
+    publish_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (dynamic_id),
+    KEY idx_author_id    (author_id),
+    KEY idx_publish_time (publish_time),
+    CONSTRAINT fk_rd_author FOREIGN KEY (author_id) REFERENCES user (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- 4. 社交模块
+-- ============================================
+
+CREATE TABLE follow (
+    relation_id BIGINT    NOT NULL AUTO_INCREMENT,
+    follower_id BIGINT    NOT NULL,
+    followee_id BIGINT    NOT NULL,
+    is_starred  TINYINT(1) NOT NULL DEFAULT 0,
+    created_at  DATETIME  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (relation_id),
+    UNIQUE KEY uk_follower_followee (follower_id, followee_id),
+    KEY idx_followee_id (followee_id),
+    CONSTRAINT fk_follow_follower FOREIGN KEY (follower_id) REFERENCES user (user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_follow_followee FOREIGN KEY (followee_id) REFERENCES user (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE private_message (
+    message_id  BIGINT    NOT NULL AUTO_INCREMENT,
+    sender_id   BIGINT    NOT NULL,
+    receiver_id BIGINT    NOT NULL,
+    content     TEXT      NOT NULL,
+    is_read     TINYINT(1) NOT NULL DEFAULT 0,
+    send_time   DATETIME  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (message_id),
+    KEY idx_sender_id      (sender_id),
+    KEY idx_receiver_id    (receiver_id),
+    KEY idx_receiver_read  (receiver_id, is_read),
+    CONSTRAINT fk_pm_sender   FOREIGN KEY (sender_id)   REFERENCES user (user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_pm_receiver FOREIGN KEY (receiver_id) REFERENCES user (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE group_info (
+    group_id   BIGINT       NOT NULL AUTO_INCREMENT,
+    owner_id   BIGINT       NOT NULL,
+    group_name VARCHAR(100) NOT NULL,
+    mode       INT          NOT NULL DEFAULT 0,
+    status     INT          NOT NULL DEFAULT 1,
+    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (group_id),
+    KEY idx_owner_id (owner_id),
+    CONSTRAINT fk_group_owner FOREIGN KEY (owner_id) REFERENCES user (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE group_member (
+    member_id BIGINT   NOT NULL AUTO_INCREMENT,
+    group_id  BIGINT   NOT NULL,
+    user_id   BIGINT   NOT NULL,
+    role      INT      NOT NULL DEFAULT 0,
+    joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (member_id),
+    UNIQUE KEY uk_group_user (group_id, user_id),
+    KEY idx_user_id (user_id),
+    CONSTRAINT fk_gm_group FOREIGN KEY (group_id) REFERENCES group_info (group_id) ON DELETE CASCADE,
+    CONSTRAINT fk_gm_user  FOREIGN KEY (user_id)  REFERENCES user (user_id)      ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE group_post (
+    group_post_id BIGINT   NOT NULL AUTO_INCREMENT,
+    group_id      BIGINT   NOT NULL,
+    author_id     BIGINT   NOT NULL,
+    content       TEXT     NOT NULL,
+    publish_time  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (group_post_id),
+    KEY idx_group_id  (group_id),
+    KEY idx_author_id (author_id),
+    CONSTRAINT fk_gp_group  FOREIGN KEY (group_id)  REFERENCES group_info (group_id) ON DELETE CASCADE,
+    CONSTRAINT fk_gp_author FOREIGN KEY (author_id) REFERENCES user (user_id)       ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- 5. 运营管理模块
+-- ============================================
+
+CREATE TABLE audit_queue (
+    audit_item_id BIGINT   NOT NULL AUTO_INCREMENT,
+    content_type  INT      NOT NULL,
+    content_id    BIGINT   NOT NULL,
+    audit_status  INT      NOT NULL DEFAULT 0,
+    created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    audited_at    DATETIME DEFAULT NULL,
+    PRIMARY KEY (audit_item_id),
+    KEY idx_content_type_status (content_type, audit_status),
+    KEY idx_content_id          (content_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE report (
+    report_id   BIGINT   NOT NULL AUTO_INCREMENT,
+    reporter_id BIGINT   NOT NULL,
+    target_type INT      NOT NULL,
+    target_id   BIGINT   NOT NULL,
+    status      INT      NOT NULL DEFAULT 0,
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (report_id),
+    KEY idx_reporter_id (reporter_id),
+    KEY idx_target      (target_type, target_id),
+    KEY idx_status      (status),
+    CONSTRAINT fk_report_reporter FOREIGN KEY (reporter_id) REFERENCES user (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE user_punishment (
+    punishment_id  BIGINT   NOT NULL AUTO_INCREMENT,
+    user_id        BIGINT   NOT NULL,
+    punishment_type INT    NOT NULL,
+    duration_days  INT      NOT NULL DEFAULT 0,
+    created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expire_at      DATETIME DEFAULT NULL,
+    PRIMARY KEY (punishment_id),
+    KEY idx_user_id   (user_id),
+    KEY idx_expire_at (expire_at),
+    CONSTRAINT fk_up_user FOREIGN KEY (user_id) REFERENCES user (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE user_behavior (
+    behavior_id   BIGINT   NOT NULL AUTO_INCREMENT,
+    user_id       BIGINT   NOT NULL,
+    behavior_type INT      NOT NULL,
+    target_id     BIGINT   DEFAULT NULL,
+    created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (behavior_id),
+    KEY idx_user_id             (user_id),
+    KEY idx_user_behavior_time  (user_id, behavior_type, created_at),
+    CONSTRAINT fk_ub_user FOREIGN KEY (user_id) REFERENCES user (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
