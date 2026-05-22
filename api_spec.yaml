@@ -1,0 +1,3252 @@
+openapi: "3.0.3"
+info:
+  title: 社区论坛系统 RESTful API
+  description: |
+    基于前后端分离原则的社区论坛系统接口文档。
+    
+    ## 认证方式
+    所有接口（除注册/登录/健康检查外）需在请求头携带 JWT Token：
+    ```
+    Authorization: Bearer <token>
+    ```
+    
+    ## 统一响应格式
+    ```json
+    { "code": 200, "message": "success", "data": { ... } }
+    ```
+    
+    ## 分页响应格式
+    ```json
+    { "code": 200, "data": { "records": [...], "total": 100, "page": 1, "pageSize": 20, "totalPages": 5 } }
+    ```
+    
+    ## 错误响应格式
+    ```json
+    { "code": 400, "message": "参数校验失败", "data": null }
+    ```
+    ```json
+    { "code": 401, "message": "未登录或Token已过期", "data": null }
+    ```
+    ```json
+    { "code": 403, "message": "无权限执行此操作", "data": null }
+    ```
+    ```json
+    { "code": 404, "message": "资源不存在", "data": null }
+    ```
+    ```json
+    { "code": 500, "message": "服务器内部错误", "data": null }
+    ```
+  version: "2.0.0"
+  contact:
+    name: 开发团队
+    email: dev@community-forum.com
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: 本地开发环境
+  - url: https://api.community-forum.com/api/v1
+    description: 生产环境
+
+tags:
+  - name: Common
+    description: 通用接口 — 健康检查
+  - name: Auth
+    description: 认证模块 — 注册、登录、登出、Token 刷新
+  - name: Users
+    description: 用户模块 — 个人资料、偏好设置、隐私设置、认证申请、成就、搜索
+  - name: Posts
+    description: 帖子模块 — 帖子 CRUD、点赞、收藏、精华、置顶、附件上传
+  - name: Comments
+    description: 评论模块 — 评论 CRUD、楼中楼回复、点赞
+  - name: Votes
+    description: 投票模块 — 投票创建、提交投票、查看结果
+  - name: Sections
+    description: 板块模块 — 板块与分区管理
+  - name: Dynamics
+    description: 动态模块 — 实时动态（类似微博/朋友圈）
+  - name: Social
+    description: 社交模块 — 关注、私信、群组、举报提交
+  - name: Notifications
+    description: 通知模块 — 消息通知推送与已读
+  - name: Admin
+    description: 管理模块 — 审核队列、举报处理、用户处罚（需管理员权限）
+
+# ============================================================
+# 全局组件定义
+# ============================================================
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 请求头： `Authorization: Bearer <token>`
+    OptionalAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 可选认证（未登录也可访问，已登录则返回个性化数据）
+
+  schemas:
+    # ----- 通用响应 -----
+    SuccessResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: success
+        data:
+          description: 响应数据（类型视具体接口而定）
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: 参数校验失败
+        data:
+          nullable: true
+          example: null
+
+    PaginatedData:
+      type: object
+      properties:
+        records:
+          type: array
+          items: {}
+          description: 当前页数据
+        total:
+          type: integer
+          format: int64
+          example: 100
+        page:
+          type: integer
+          example: 1
+        pageSize:
+          type: integer
+          example: 20
+        totalPages:
+          type: integer
+          example: 5
+
+    # ----- 认证 -----
+    LoginRequest:
+      type: object
+      required: [account, password]
+      properties:
+        account:
+          type: string
+          description: 手机号或邮箱
+        password:
+          type: string
+          format: password
+          minLength: 6
+          maxLength: 32
+      example:
+        account: "13800138000"
+        password: "abc12345"
+
+    RegisterRequest:
+      type: object
+      required: [nickname, account, password]
+      properties:
+        nickname:
+          type: string
+          minLength: 2
+          maxLength: 20
+        account:
+          type: string
+          description: 手机号或邮箱
+        password:
+          type: string
+          format: password
+          minLength: 6
+          maxLength: 32
+      example:
+        nickname: "投资达人"
+        account: "13800138000"
+        password: "abc12345"
+
+    TokenResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT 访问令牌（有效期 2 小时）
+        refreshToken:
+          type: string
+          description: 刷新令牌（有效期 7 天）
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          description: 访问令牌过期时间（秒）
+          example: 7200
+
+    # ----- 用户 -----
+    UserBrief:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+          description: 昵称
+        avatarUrl:
+          type: string
+          description: 头像URL
+        bio:
+          type: string
+          description: 个人简介
+        gender:
+          type: integer
+          description: 性别（0未知 1男 2女）
+        verificationLevel:
+          type: integer
+          description: 认证等级
+        level:
+          type: integer
+          description: 用户等级
+        points:
+          type: integer
+          description: 积分
+        isFollowed:
+          type: boolean
+          description: 当前用户是否已关注此人
+        createdAt:
+          type: string
+          format: date-time
+          description: 注册时间
+
+    UserDetail:
+      allOf:
+        - $ref: "#/components/schemas/UserBrief"
+        - type: object
+          properties:
+            mobile:
+              type: string
+              description: 手机号（脱敏：138****8000）
+            email:
+              type: string
+              description: 邮箱（脱敏：e***@example.com）
+            followerCount:
+              type: integer
+              description: 粉丝数
+            followingCount:
+              type: integer
+              description: 关注数
+            preference:
+              $ref: "#/components/schemas/UserPreference"
+            achievement:
+              $ref: "#/components/schemas/UserAchievement"
+
+    UserPreference:
+      type: object
+      properties:
+        focusMarkets:
+          type: string
+          description: 关注的市场
+        riskType:
+          type: string
+          description: 风险偏好类型
+
+    PrivacySetting:
+      type: object
+      properties:
+        profileVisibility:
+          type: integer
+          description: 资料可见范围（0仅自己 1好友可见 2所有人）
+
+    UserAchievement:
+      type: object
+      properties:
+        totalPostCount:
+          type: integer
+          description: 累计发帖数
+        essencePostCount:
+          type: integer
+          description: 精华帖数
+
+    RiskAssessment:
+      type: object
+      properties:
+        resultLevel:
+          type: string
+          description: 风险等级
+        completeTime:
+          type: string
+          format: date-time
+          description: 测评完成时间
+
+    VerificationRecord:
+      type: object
+      properties:
+        recordId:
+          type: integer
+          format: int64
+        verificationType:
+          type: integer
+          description: 认证方式（0身份证 1学生证 2驾驶证）
+        auditStatus:
+          type: integer
+          description: 审核状态（0待审核 1通过 2驳回）
+        createdAt:
+          type: string
+          format: date-time
+
+    # ----- 帖子 -----
+    Post:
+      type: object
+      properties:
+        postId:
+          type: integer
+          format: int64
+        title:
+          type: string
+          description: 标题
+        content:
+          type: string
+          description: 正文（HTML/Markdown）
+        contentType:
+          type: integer
+          description: 内容类型（0普通帖 1投票帖 2图文帖）
+        sectionId:
+          type: integer
+          description: 板块ID
+        sectionName:
+          type: string
+          description: 板块名称
+        zoneId:
+          type: integer
+          description: 分区ID
+        zoneName:
+          type: string
+          description: 分区名称
+        author:
+          $ref: "#/components/schemas/UserBrief"
+        likeCount:
+          type: integer
+        viewCount:
+          type: integer
+        commentCount:
+          type: integer
+        collectCount:
+          type: integer
+        isEssence:
+          type: boolean
+          description: 是否精华帖
+        isPinned:
+          type: boolean
+          description: 是否置顶帖
+        isLiked:
+          type: boolean
+          description: 当前用户是否已点赞
+        isCollected:
+          type: boolean
+          description: 当前用户是否已收藏
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Attachment"
+        vote:
+          $ref: "#/components/schemas/VoteDetail"
+        publishTime:
+          type: string
+          format: date-time
+
+    PostCreate:
+      type: object
+      required: [title, content, sectionId, contentType]
+      properties:
+        title:
+          type: string
+          maxLength: 200
+          description: 帖子标题
+        content:
+          type: string
+          description: 正文内容
+        contentType:
+          type: integer
+          description: 内容类型（0普通帖 1投票帖 2图文帖）
+          default: 0
+        sectionId:
+          type: integer
+          description: 板块ID
+        zoneId:
+          type: integer
+          description: 分区ID
+        attachmentIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          description: 已上传的附件ID列表
+
+    PostUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        content:
+          type: string
+        sectionId:
+          type: integer
+        zoneId:
+          type: integer
+
+    # ----- 评论 -----
+    Comment:
+      type: object
+      properties:
+        commentId:
+          type: integer
+          format: int64
+        postId:
+          type: integer
+          format: int64
+        parentCommentId:
+          type: integer
+          format: int64
+          description: 父评论ID（null 表示直接评论帖子）
+        author:
+          $ref: "#/components/schemas/UserBrief"
+        content:
+          type: string
+        likeCount:
+          type: integer
+        replyCount:
+          type: integer
+          description: 楼中楼回复数
+        isLiked:
+          type: boolean
+          description: 当前用户是否已点赞
+        isDeleted:
+          type: boolean
+        publishTime:
+          type: string
+          format: date-time
+
+    CommentCreate:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          description: 评论内容
+        parentCommentId:
+          type: integer
+          format: int64
+          description: 父评论ID（回复楼中楼时传入）
+
+    # ----- 投票 -----
+    VoteOption:
+      type: object
+      properties:
+        index:
+          type: integer
+          description: 选项序号
+        text:
+          type: string
+          description: 选项文本
+        count:
+          type: integer
+          description: 该选项得票数
+        percentage:
+          type: number
+          format: float
+          description: 该选项得票百分比
+        isSelected:
+          type: boolean
+          description: 当前用户是否选择了该选项
+
+    VoteDetail:
+      type: object
+      properties:
+        voteId:
+          type: integer
+          format: int64
+        voteTitle:
+          type: string
+          description: 投票标题
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/VoteOption"
+          description: 投票选项列表（含统计）
+        totalCount:
+          type: integer
+          description: 总投票人数
+        endTime:
+          type: string
+          format: date-time
+        isExpired:
+          type: boolean
+        mySelection:
+          type: integer
+          description: 当前用户的选择序号（null 表示未投票）
+
+    VoteCreate:
+      type: object
+      required: [voteTitle, options, endTime]
+      properties:
+        voteTitle:
+          type: string
+          maxLength: 200
+          description: 投票标题
+        options:
+          type: array
+          minItems: 2
+          maxItems: 10
+          items:
+            type: string
+          description: 投票选项文本（2-10个）
+        endTime:
+          type: string
+          format: date-time
+          description: 截止时间
+
+    VoteSubmit:
+      type: object
+      required: [optionIndex]
+      properties:
+        optionIndex:
+          type: integer
+          description: 选择的选项序号
+
+    # ----- 关注 -----
+    FollowUser:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        avatarUrl:
+          type: string
+        bio:
+          type: string
+        isStarred:
+          type: boolean
+          description: 是否特别关注
+        isMutual:
+          type: boolean
+          description: 是否互相关注
+        followedAt:
+          type: string
+          format: date-time
+
+    # ----- 私信 -----
+    PrivateMessage:
+      type: object
+      properties:
+        messageId:
+          type: integer
+          format: int64
+        senderId:
+          type: integer
+          format: int64
+          description: 发送者ID
+        sender:
+          $ref: "#/components/schemas/UserBrief"
+        content:
+          type: string
+        isRead:
+          type: boolean
+        isMine:
+          type: boolean
+          description: 是否是我发送的
+        sendTime:
+          type: string
+          format: date-time
+
+    Conversation:
+      type: object
+      properties:
+        targetUser:
+          $ref: "#/components/schemas/UserBrief"
+        lastMessage:
+          type: string
+          description: 最后一条消息预览
+        unreadCount:
+          type: integer
+          description: 未读消息数
+        lastTime:
+          type: string
+          format: date-time
+
+    # ----- 群组 -----
+    Group:
+      type: object
+      properties:
+        groupId:
+          type: integer
+          format: int64
+        groupName:
+          type: string
+        owner:
+          $ref: "#/components/schemas/UserBrief"
+        mode:
+          type: integer
+          description: 加群模式（0自由加入 1审核加入 2禁止加入）
+        status:
+          type: integer
+          description: 群组状态（0已解散 1正常 2禁言中）
+        memberCount:
+          type: integer
+        myRole:
+          type: integer
+          description: 当前用户的角色（0普通 1管理员 2群主，null=未加入）
+        createdAt:
+          type: string
+          format: date-time
+
+    GroupMember:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        avatarUrl:
+          type: string
+        role:
+          type: integer
+          description: 群内角色（0普通成员 1管理员 2群主）
+        joinedAt:
+          type: string
+          format: date-time
+
+    GroupPost:
+      type: object
+      properties:
+        groupPostId:
+          type: integer
+          format: int64
+        groupId:
+          type: integer
+          format: int64
+        author:
+          $ref: "#/components/schemas/UserBrief"
+        content:
+          type: string
+        likeCount:
+          type: integer
+        isLiked:
+          type: boolean
+        isMine:
+          type: boolean
+          description: 是否是我发布的
+        publishTime:
+          type: string
+          format: date-time
+
+    # ----- 动态 -----
+    Dynamic:
+      type: object
+      properties:
+        dynamicId:
+          type: integer
+          format: int64
+        author:
+          $ref: "#/components/schemas/UserBrief"
+        content:
+          type: string
+        likeCount:
+          type: integer
+        isLiked:
+          type: boolean
+        isMine:
+          type: boolean
+          description: 是否是我的动态
+        publishTime:
+          type: string
+          format: date-time
+
+    # ----- 板块 -----
+    Section:
+      type: object
+      properties:
+        sectionId:
+          type: integer
+        sectionName:
+          type: string
+        sectionType:
+          type: integer
+          description: 板块类型（0讨论区 1资讯区 2问答区）
+        sortOrder:
+          type: integer
+        zones:
+          type: array
+          items:
+            $ref: "#/components/schemas/Zone"
+
+    Zone:
+      type: object
+      properties:
+        zoneId:
+          type: integer
+        zoneName:
+          type: string
+        sectionId:
+          type: integer
+        sortOrder:
+          type: integer
+
+    # ----- 附件 -----
+    Attachment:
+      type: object
+      properties:
+        attachmentId:
+          type: integer
+          format: int64
+        fileName:
+          type: string
+        fileType:
+          type: integer
+          description: 文件类型（0图片 1文档 2视频 3音频）
+        fileUrl:
+          type: string
+          description: 文件访问URL
+        fileSize:
+          type: integer
+          format: int64
+          description: 文件大小（字节）
+
+    # ----- 通知 -----
+    Notification:
+      type: object
+      properties:
+        notificationId:
+          type: integer
+          format: int64
+        notifyType:
+          type: integer
+          description: 通知类型（0系统 1点赞 2评论 3关注 4私信 5举报结果）
+        title:
+          type: string
+        content:
+          type: string
+        targetType:
+          type: integer
+          description: 关联目标类型（点击跳转用）
+        targetId:
+          type: integer
+          format: int64
+          description: 关联目标ID
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    # ----- 管理 -----
+    AuditItem:
+      type: object
+      properties:
+        auditItemId:
+          type: integer
+          format: int64
+        contentType:
+          type: integer
+          description: 内容类型（0帖子 1评论 2附件）
+        contentId:
+          type: integer
+          format: int64
+        preview:
+          type: string
+          description: 内容预览
+        submitter:
+          $ref: "#/components/schemas/UserBrief"
+        auditStatus:
+          type: integer
+          description: 审核状态（0待审核 1通过 2驳回）
+        auditor:
+          $ref: "#/components/schemas/UserBrief"
+        auditComment:
+          type: string
+          description: 审核意见
+        createdAt:
+          type: string
+          format: date-time
+        auditedAt:
+          type: string
+          format: date-time
+
+    AuditAction:
+      type: object
+      required: [auditStatus]
+      properties:
+        auditStatus:
+          type: integer
+          description: 审核结果（1通过 2驳回）
+        auditComment:
+          type: string
+          description: 审核意见
+
+    ReportItem:
+      type: object
+      properties:
+        reportId:
+          type: integer
+          format: int64
+        reporter:
+          $ref: "#/components/schemas/UserBrief"
+        targetType:
+          type: integer
+          description: 目标类型（0帖子 1评论 2用户 3私信）
+        targetId:
+          type: integer
+          format: int64
+        reason:
+          type: string
+          description: 举报原因
+        status:
+          type: integer
+          description: 处理状态（0待处理 1已处理 2驳回）
+        handler:
+          $ref: "#/components/schemas/UserBrief"
+        handleResult:
+          type: integer
+          description: 处理结果（0忽略 1警告 2删帖 3封禁）
+        createdAt:
+          type: string
+          format: date-time
+        handledAt:
+          type: string
+          format: date-time
+
+    ReportCreate:
+      type: object
+      required: [targetType, targetId]
+      properties:
+        targetType:
+          type: integer
+          description: 举报目标类型（0帖子 1评论 2用户 3私信）
+        targetId:
+          type: integer
+          format: int64
+          description: 举报目标ID
+        reason:
+          type: string
+          maxLength: 500
+          description: 举报原因
+
+    ReportHandle:
+      type: object
+      required: [status, handleResult]
+      properties:
+        status:
+          type: integer
+          description: 处理状态（1已处理 2驳回）
+        handleResult:
+          type: integer
+          description: 处理结果（0忽略 1警告 2删帖 3封禁）
+        punishmentType:
+          type: integer
+          description: 处罚类型（0警告 1禁言 2封号，仅handleResult=1/3时必填）
+        durationDays:
+          type: integer
+          description: 处罚持续天数（0=永久，仅punishmentType>0时关注此值）
+
+    Punishment:
+      type: object
+      properties:
+        punishmentId:
+          type: integer
+          format: int64
+        user:
+          $ref: "#/components/schemas/UserBrief"
+        punishmentType:
+          type: integer
+          description: 处罚类型（0警告 1禁言 2封号）
+        reason:
+          type: string
+        operator:
+          $ref: "#/components/schemas/UserBrief"
+        durationDays:
+          type: integer
+        isActive:
+          type: boolean
+          description: 处罚是否有效（未过期且未撤销）
+        createdAt:
+          type: string
+          format: date-time
+        expireAt:
+          type: string
+          format: date-time
+
+    # ----- 用户搜索 -----
+    UserSearchResult:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        avatarUrl:
+          type: string
+        bio:
+          type: string
+        verificationLevel:
+          type: integer
+        isFollowed:
+          type: boolean
+
+  # ----- 通用参数 -----
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+      description: 页码（从1开始）
+    PageSizeParam:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+      description: 每页条数
+    SortParam:
+      name: sort
+      in: query
+      schema:
+        type: string
+        enum: [latest, hot, popular]
+        default: latest
+      description: 排序方式（latest=最新 hot=最热 popular=最受欢迎）
+
+  # ----- 通用响应（复用）-----
+  responses:
+    400_BadRequest:
+      description: 请求参数校验失败
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: 400
+            message: "参数校验失败：标题不能为空"
+            data: null
+    401_Unauthorized:
+      description: 未登录或 Token 已过期
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: 401
+            message: "未登录或Token已过期"
+            data: null
+    403_Forbidden:
+      description: 无权限执行此操作
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: 403
+            message: "无权限执行此操作"
+            data: null
+    404_NotFound:
+      description: 请求的资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: 404
+            message: "资源不存在"
+            data: null
+    500_ServerError:
+      description: 服务器内部错误
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: 500
+            message: "服务器内部错误"
+            data: null
+
+# 全局认证（除明确标记 security: [] 的接口外，均需认证）
+security:
+  - BearerAuth: []
+
+# ============================================================
+# 路径定义
+# ============================================================
+paths:
+  # ========================================
+  # Common 通用接口
+  # ========================================
+  /health:
+    get:
+      tags: [Common]
+      summary: 健康检查
+      description: 检查服务运行状态（无需认证）
+      security: []
+      responses:
+        "200":
+          description: 服务正常
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: UP
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+                    example: 2.0.0
+
+  # ========================================
+  # Auth 认证模块
+  # ========================================
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: 用户注册
+      description: 使用手机号或邮箱注册新账号，成功后直接返回 Token（自动登录）
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 201 }
+                  message: { type: string, example: "注册成功" }
+                  data:
+                    $ref: "#/components/schemas/TokenResponse"
+        "400":
+          $ref: "#/components/responses/400_BadRequest"
+        "500":
+          $ref: "#/components/responses/500_ServerError"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 用户登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "登录成功" }
+                  data:
+                    $ref: "#/components/schemas/TokenResponse"
+        "401":
+          description: 账号或密码错误
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                code: 401
+                message: "账号或密码错误"
+                data: null
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: 刷新 Token
+      description: accessToken 过期前使用 refreshToken 获取新 Token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        "200":
+          description: 刷新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "Token刷新成功" }
+                  data:
+                    $ref: "#/components/schemas/TokenResponse"
+        "401":
+          description: refreshToken 无效或已过期
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: 登出
+      description: 使当前 accessToken 与 refreshToken 同时失效
+      responses:
+        "200":
+          description: 登出成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "已登出" }
+                  data: { nullable: true, example: null }
+
+  # ========================================
+  # Users 用户模块
+  # ========================================
+  /users/me:
+    get:
+      tags: [Users]
+      summary: 获取当前登录用户完整信息
+      responses:
+        "200":
+          description: 用户详情
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    $ref: "#/components/schemas/UserDetail"
+        "401":
+          $ref: "#/components/responses/401_Unauthorized"
+    put:
+      tags: [Users]
+      summary: 更新当前用户资料
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nickname:
+                  type: string
+                  minLength: 2
+                  maxLength: 20
+                avatarUrl:
+                  type: string
+                bio:
+                  type: string
+                  maxLength: 200
+                gender:
+                  type: integer
+                  minimum: 0
+                  maximum: 2
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "更新成功" }
+                  data:
+                    $ref: "#/components/schemas/UserDetail"
+        "400":
+          $ref: "#/components/responses/400_BadRequest"
+
+  /users/me/password:
+    put:
+      tags: [Users]
+      summary: 修改密码
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [oldPassword, newPassword]
+              properties:
+                oldPassword:
+                  type: string
+                  format: password
+                  description: 当前密码
+                newPassword:
+                  type: string
+                  format: password
+                  minLength: 6
+                  maxLength: 32
+                  description: 新密码
+      responses:
+        "200":
+          description: 密码修改成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "密码修改成功" }
+                  data: { nullable: true, example: null }
+        "400":
+          description: 旧密码错误或新密码不符合规则
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/search:
+    get:
+      tags: [Users]
+      summary: 搜索用户
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          description: 搜索关键词（匹配昵称）
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 搜索结果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/UserSearchResult"
+                      total: { type: integer, example: 25 }
+                      page: { type: integer, example: 1 }
+                      pageSize: { type: integer, example: 20 }
+                      totalPages: { type: integer, example: 2 }
+
+  /users/{userId}:
+    get:
+      tags: [Users]
+      summary: 获取指定用户公开信息
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 用户公开信息
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    $ref: "#/components/schemas/UserDetail"
+        "404":
+          $ref: "#/components/responses/404_NotFound"
+
+  /users/me/preference:
+    get:
+      tags: [Users]
+      summary: 获取用户偏好设置
+      responses:
+        "200":
+          description: 偏好设置
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    $ref: "#/components/schemas/UserPreference"
+    put:
+      tags: [Users]
+      summary: 更新用户偏好设置
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserPreference"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "更新成功" }
+                  data:
+                    $ref: "#/components/schemas/UserPreference"
+
+  /users/me/privacy:
+    get:
+      tags: [Users]
+      summary: 获取隐私设置
+      responses:
+        "200":
+          description: 隐私设置
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    $ref: "#/components/schemas/PrivacySetting"
+    put:
+      tags: [Users]
+      summary: 更新隐私设置
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrivacySetting"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "更新成功" }
+                  data:
+                    $ref: "#/components/schemas/PrivacySetting"
+
+  /users/me/achievement:
+    get:
+      tags: [Users]
+      summary: 获取用户成就统计
+      responses:
+        "200":
+          description: 成就数据
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    $ref: "#/components/schemas/UserAchievement"
+
+  /users/me/risk-assessment:
+    get:
+      tags: [Users]
+      summary: 获取风险评估结果
+      responses:
+        "200":
+          description: 风险评估结果（data 为 null 表示未测评）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    $ref: "#/components/schemas/RiskAssessment"
+    post:
+      tags: [Users]
+      summary: 提交/更新风险评估
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resultLevel]
+              properties:
+                resultLevel:
+                  type: string
+                  description: 风险评估等级
+      responses:
+        "200":
+          description: 提交成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "提交成功" }
+                  data:
+                    $ref: "#/components/schemas/RiskAssessment"
+
+  /users/me/verification:
+    get:
+      tags: [Users]
+      summary: 获取认证申请记录列表
+      responses:
+        "200":
+          description: 认证记录列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/VerificationRecord"
+    post:
+      tags: [Users]
+      summary: 提交认证申请
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verificationType]
+              properties:
+                verificationType:
+                  type: integer
+                  description: 认证方式（0身份证 1学生证 2驾驶证）
+      responses:
+        "201":
+          description: 申请已提交
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 201 }
+                  message: { type: string, example: "认证申请已提交" }
+                  data:
+                    $ref: "#/components/schemas/VerificationRecord"
+        "400":
+          $ref: "#/components/responses/400_BadRequest"
+
+  # ========================================
+  # Posts 帖子模块
+  # ========================================
+  /posts:
+    get:
+      tags: [Posts]
+      summary: 帖子列表（首页/板块/分区）
+      description: 支持板块筛选、分区筛选、关键词搜索、多种排序
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - $ref: "#/components/parameters/SortParam"
+        - name: sectionId
+          in: query
+          schema:
+            type: integer
+          description: 按板块ID筛选
+        - name: zoneId
+          in: query
+          schema:
+            type: integer
+          description: 按分区ID筛选
+        - name: keyword
+          in: query
+          schema:
+            type: string
+          description: 搜索关键词（匹配标题与正文）
+        - name: isEssence
+          in: query
+          schema:
+            type: boolean
+          description: 仅显示精华帖
+      responses:
+        "200":
+          description: 帖子列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Post"
+                      total: { type: integer, example: 100 }
+                      page: { type: integer, example: 1 }
+                      pageSize: { type: integer, example: 20 }
+                      totalPages: { type: integer, example: 5 }
+    post:
+      tags: [Posts]
+      summary: 发布帖子
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostCreate"
+      responses:
+        "201":
+          description: 发布成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 201 }
+                  message: { type: string, example: "发布成功" }
+                  data:
+                    $ref: "#/components/schemas/Post"
+        "400":
+          $ref: "#/components/responses/400_BadRequest"
+        "401":
+          $ref: "#/components/responses/401_Unauthorized"
+
+  /posts/{postId}:
+    get:
+      tags: [Posts]
+      summary: 帖子详情
+      description: 获取帖子完整信息（同时计入一次浏览）
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 帖子详情
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    $ref: "#/components/schemas/Post"
+        "404":
+          $ref: "#/components/responses/404_NotFound"
+    put:
+      tags: [Posts]
+      summary: 编辑帖子（仅作者本人）
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostUpdate"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "更新成功" }
+                  data:
+                    $ref: "#/components/schemas/Post"
+        "403":
+          $ref: "#/components/responses/403_Forbidden"
+        "404":
+          $ref: "#/components/responses/404_NotFound"
+    delete:
+      tags: [Posts]
+      summary: 删除帖子（软删除，作者或管理员）
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "已删除" }
+                  data: { nullable: true, example: null }
+        "403":
+          $ref: "#/components/responses/403_Forbidden"
+        "404":
+          $ref: "#/components/responses/404_NotFound"
+
+  /posts/{postId}/like:
+    post:
+      tags: [Posts]
+      summary: 点赞/取消点赞帖子（Toggle）
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      isLiked: { type: boolean, description: 操作后的点赞状态 }
+                      likeCount: { type: integer, description: 操作后的点赞数 }
+        "404":
+          $ref: "#/components/responses/404_NotFound"
+
+  /posts/{postId}/collect:
+    post:
+      tags: [Posts]
+      summary: 收藏/取消收藏帖子（Toggle）
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      isCollected: { type: boolean }
+                      collectCount: { type: integer }
+
+  /posts/collections:
+    get:
+      tags: [Posts]
+      summary: 我的收藏列表
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 收藏列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Post"
+                      total: { type: integer, example: 8 }
+                      page: { type: integer, example: 1 }
+                      pageSize: { type: integer, example: 20 }
+                      totalPages: { type: integer, example: 1 }
+
+  /posts/{postId}/pin:
+    put:
+      tags: [Posts]
+      summary: 置顶/取消置顶帖子（版主/管理员）
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isPinned]
+              properties:
+                isPinned:
+                  type: boolean
+      responses:
+        "200":
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "已置顶" }
+                  data: { nullable: true, example: null }
+        "403":
+          $ref: "#/components/responses/403_Forbidden"
+
+  /posts/{postId}/essence:
+    put:
+      tags: [Posts]
+      summary: 设为/取消精华帖（版主/管理员）
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isEssence]
+              properties:
+                isEssence:
+                  type: boolean
+      responses:
+        "200":
+          description: 操作成功
+        "403":
+          $ref: "#/components/responses/403_Forbidden"
+
+  # ========================================
+  # Comments 评论模块
+  # ========================================
+  /posts/{postId}/comments:
+    get:
+      tags: [Comments]
+      summary: 帖子评论列表（一级评论，含楼中楼展开）
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [latest, oldest, hot]
+            default: latest
+          description: 排序方式
+      responses:
+        "200":
+          description: 评论列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Comment"
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      totalPages: { type: integer }
+    post:
+      tags: [Comments]
+      summary: 发表评论
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommentCreate"
+      responses:
+        "201":
+          description: 评论成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 201 }
+                  message: { type: string, example: "评论成功" }
+                  data:
+                    $ref: "#/components/schemas/Comment"
+        "400":
+          $ref: "#/components/responses/400_BadRequest"
+        "404":
+          $ref: "#/components/responses/404_NotFound"
+
+  /comments/{commentId}:
+    delete:
+      tags: [Comments]
+      summary: 删除评论（软删除，作者或管理员）
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "已删除" }
+                  data: { nullable: true, example: null }
+        "403":
+          $ref: "#/components/responses/403_Forbidden"
+
+  /comments/{commentId}/like:
+    post:
+      tags: [Comments]
+      summary: 点赞/取消点赞评论（Toggle）
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      isLiked: { type: boolean }
+                      likeCount: { type: integer }
+
+  /comments/{commentId}/replies:
+    get:
+      tags: [Comments]
+      summary: 获取楼中楼回复列表
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 回复列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Comment"
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      totalPages: { type: integer }
+
+  # ========================================
+  # Votes 投票模块
+  # ========================================
+  /posts/{postId}/vote:
+    post:
+      tags: [Votes]
+      summary: 为帖子创建投票（作者在发帖后附加）
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoteCreate"
+      responses:
+        "201":
+          description: 投票创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 201 }
+                  message: { type: string, example: "投票创建成功" }
+                  data:
+                    $ref: "#/components/schemas/VoteDetail"
+        "400":
+          description: 帖子已有投票或帖子非投票类型
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      tags: [Votes]
+      summary: 获取帖子关联的投票详情（含各选项当前统计）
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 投票详情
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    $ref: "#/components/schemas/VoteDetail"
+        "404":
+          description: 该帖子未关联投票
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /votes/{voteId}/submit:
+    post:
+      tags: [Votes]
+      summary: 提交投票
+      parameters:
+        - name: voteId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoteSubmit"
+      responses:
+        "200":
+          description: 投票成功，返回更新后的投票状态
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "投票成功" }
+                  data:
+                    $ref: "#/components/schemas/VoteDetail"
+        "400":
+          description: 已投过票或投票已截止
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ========================================
+  # Sections 板块模块
+  # ========================================
+  /sections:
+    get:
+      tags: [Sections]
+      summary: 获取所有板块及其分区（树形结构）
+      description: 公开接口，前端首页导航栏使用
+      security: []
+      responses:
+        "200":
+          description: 板块树
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Section"
+
+  /sections/{sectionId}/zones:
+    get:
+      tags: [Sections]
+      summary: 获取指定板块的分区列表
+      parameters:
+        - name: sectionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 分区列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Zone"
+
+  # ========================================
+  # Attachments 附件模块
+  # ========================================
+  /attachments/upload:
+    post:
+      tags: [Posts]
+      summary: 上传附件（图片/文档/视频等）
+      description: 先上传附件获得 attachmentId，再发布帖子时传入 attachmentIds
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 文件（最大 10MB，图片/jpg,png,gif/webp 文档/pdf,doc,docx）
+      responses:
+        "201":
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 201 }
+                  message: { type: string, example: "上传成功" }
+                  data:
+                    $ref: "#/components/schemas/Attachment"
+        "400":
+          description: 文件类型不支持或超过大小限制
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ========================================
+  # Dynamics 动态模块
+  # ========================================
+  /dynamics:
+    get:
+      tags: [Dynamics]
+      summary: 动态流
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - name: feed
+          in: query
+          schema:
+            type: string
+            enum: [following, hot]
+            default: following
+          description: 动态类型（following=关注用户动态 hot=全站热门动态）
+      responses:
+        "200":
+          description: 动态列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Dynamic"
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      totalPages: { type: integer }
+    post:
+      tags: [Dynamics]
+      summary: 发布动态
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                  maxLength: 2000
+                  description: 动态内容
+      responses:
+        "201":
+          description: 发布成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 201 }
+                  message: { type: string, example: "发布成功" }
+                  data:
+                    $ref: "#/components/schemas/Dynamic"
+
+  /dynamics/{dynamicId}:
+    delete:
+      tags: [Dynamics]
+      summary: 删除动态（仅作者本人）
+      parameters:
+        - name: dynamicId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "已删除" }
+                  data: { nullable: true, example: null }
+        "403":
+          $ref: "#/components/responses/403_Forbidden"
+
+  /users/{userId}/dynamics:
+    get:
+      tags: [Dynamics]
+      summary: 查看指定用户的动态列表
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 动态列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Dynamic"
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      totalPages: { type: integer }
+
+  # ========================================
+  # Social 社交模块 — 关注
+  # ========================================
+  /users/{userId}/follow:
+    post:
+      tags: [Social]
+      summary: 关注/取消关注用户（Toggle）
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      isFollowing: { type: boolean, description: 操作后的关注状态 }
+                      isMutual: { type: boolean, description: 是否互相关注 }
+        "400":
+          description: 不能关注自己
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{userId}/star:
+    put:
+      tags: [Social]
+      summary: 设置/取消特别关注
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isStarred]
+              properties:
+                isStarred:
+                  type: boolean
+      responses:
+        "200":
+          description: 操作成功
+
+  /users/me/following:
+    get:
+      tags: [Social]
+      summary: 我的关注列表
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 关注列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/FollowUser"
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      totalPages: { type: integer }
+
+  /users/me/followers:
+    get:
+      tags: [Social]
+      summary: 我的粉丝列表
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 粉丝列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/FollowUser"
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      totalPages: { type: integer }
+
+  /users/{userId}/following:
+    get:
+      tags: [Social]
+      summary: 查看指定用户的关注列表
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 关注列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/FollowUser"
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      totalPages: { type: integer }
+
+  /users/{userId}/followers:
+    get:
+      tags: [Social]
+      summary: 查看指定用户的粉丝列表
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 粉丝列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/FollowUser"
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      totalPages: { type: integer }
+
+  # ========================================
+  # Social 社交模块 — 私信
+  # ========================================
+  /messages/conversations:
+    get:
+      tags: [Social]
+      summary: 会话列表（所有与我私信过的用户）
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 会话列表（按最后消息时间倒序）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Conversation"
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      totalPages: { type: integer }
+
+  /messages/with/{userId}:
+    get:
+      tags: [Social]
+      summary: 与指定用户的私信记录
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 对方用户ID
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 私信记录（按时间倒序）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/PrivateMessage"
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      totalPages: { type: integer }
+    post:
+      tags: [Social]
+      summary: 发送私信
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 接收者用户ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                  description: 私信内容
+      responses:
+        "201":
+          description: 发送成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 201 }
+                  message: { type: string, example: "发送成功" }
+                  data:
+                    $ref: "#/components/schemas/PrivateMessage"
+        "400":
+          description: 无法给自己发私信
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /messages/{messageId}/read:
+    put:
+      tags: [Social]
+      summary: 标记单条私信为已读
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 已标记
+
+  /messages/read-all/{userId}:
+    put:
+      tags: [Social]
+      summary: 一键已读某用户发来的全部私信
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 发送者用户ID
+      responses:
+        "200":
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "已全部标记为已读" }
+                  data: { nullable: true, example: null }
+
+  # ========================================
+  # Social 社交模块 — 群组
+  # ========================================
+  /groups:
+    get:
+      tags: [Social]
+      summary: 我加入的群组列表
+      responses:
+        "200":
+          description: 群组列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Group"
+    post:
+      tags: [Social]
+      summary: 创建群组
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [groupName]
+              properties:
+                groupName:
+                  type: string
+                  maxLength: 100
+                mode:
+                  type: integer
+                  description: 加群模式（0自由加入 1审核加入 2禁止加入）
+                  default: 0
+      responses:
+        "201":
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 201 }
+                  message: { type: string, example: "群组创建成功" }
+                  data:
+                    $ref: "#/components/schemas/Group"
+
+  /groups/{groupId}:
+    get:
+      tags: [Social]
+      summary: 群组详情
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 群组详情
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    $ref: "#/components/schemas/Group"
+        "404":
+          $ref: "#/components/responses/404_NotFound"
+    put:
+      tags: [Social]
+      summary: 编辑群组信息（群主/管理员）
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                groupName:
+                  type: string
+                  maxLength: 100
+                mode:
+                  type: integer
+                  description: 加群模式
+      responses:
+        "200":
+          description: 更新成功
+        "403":
+          $ref: "#/components/responses/403_Forbidden"
+
+  /groups/{groupId}/join:
+    post:
+      tags: [Social]
+      summary: 加入群组
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 加入成功（或已发送申请）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "已加入群组" }
+                  data:
+                    $ref: "#/components/schemas/Group"
+        "403":
+          description: 群组禁止加入或已被封禁
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /groups/{groupId}/leave:
+    post:
+      tags: [Social]
+      summary: 退出群组（群主退出则转让或解散）
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 已退出
+
+  /groups/{groupId}/members:
+    get:
+      tags: [Social]
+      summary: 群组成员列表
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 成员列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/GroupMember"
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      totalPages: { type: integer }
+
+  /groups/{groupId}/members/{userId}/role:
+    put:
+      tags: [Social]
+      summary: 设置/变更成员角色（群主专用）
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: integer
+                  description: 角色（0普通成员 1管理员）
+      responses:
+        "200":
+          description: 角色已更新
+
+  /groups/{groupId}/members/{userId}/kick:
+    post:
+      tags: [Social]
+      summary: 踢出成员（群主/管理员）
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 已踢出
+
+  /groups/{groupId}/posts:
+    get:
+      tags: [Social]
+      summary: 群帖子列表
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 群帖子列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/GroupPost"
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      totalPages: { type: integer }
+    post:
+      tags: [Social]
+      summary: 发布群帖子（仅群成员）
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+      responses:
+        "201":
+          description: 发布成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 201 }
+                  message: { type: string }
+                  data:
+                    $ref: "#/components/schemas/GroupPost"
+
+  /groups/posts/{groupPostId}:
+    delete:
+      tags: [Social]
+      summary: 删除群帖子（作者本人或群主/管理员）
+      parameters:
+        - name: groupPostId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 已删除
+
+  # ========================================
+  # Social 社交模块 — 举报提交
+  # ========================================
+  /reports:
+    post:
+      tags: [Social]
+      summary: 提交举报（所有登录用户可操作）
+      description: 对违规内容（帖子、评论、用户、私信）提交举报
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportCreate"
+      responses:
+        "201":
+          description: 举报已提交
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 201 }
+                  message: { type: string, example: "举报已提交" }
+                  data:
+                    $ref: "#/components/schemas/ReportItem"
+        "400":
+          $ref: "#/components/responses/400_BadRequest"
+
+  # ========================================
+  # Notifications 通知模块
+  # ========================================
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: 通知列表
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - name: type
+          in: query
+          schema:
+            type: integer
+          description: 按通知类型筛选（不传则全部）
+      responses:
+        "200":
+          description: 通知列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Notification"
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      totalPages: { type: integer }
+
+  /notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: 获取未读通知数
+      responses:
+        "200":
+          description: 未读数
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      total: { type: integer, example: 5 }
+
+  /notifications/{notificationId}/read:
+    put:
+      tags: [Notifications]
+      summary: 标记单条通知为已读
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 已标记
+
+  /notifications/read-all:
+    put:
+      tags: [Notifications]
+      summary: 全部标记已读
+      responses:
+        "200":
+          description: 全部已读
+
+  # ========================================
+  # Admin 管理模块 — 审核
+  # ========================================
+  /admin/audit-queue:
+    get:
+      tags: [Admin]
+      summary: 审核队列列表（管理员）
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - name: contentType
+          in: query
+          schema:
+            type: integer
+          description: 按内容类型筛选（0帖子 1评论 2附件）
+        - name: auditStatus
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: 按审核状态筛选（默认0=待审核）
+      responses:
+        "200":
+          description: 审核项列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/AuditItem"
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      totalPages: { type: integer }
+        "403":
+          $ref: "#/components/responses/403_Forbidden"
+
+  /admin/audit-queue/{auditItemId}:
+    put:
+      tags: [Admin]
+      summary: 审核处理（通过/驳回）
+      parameters:
+        - name: auditItemId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuditAction"
+      responses:
+        "200":
+          description: 审核完成
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "审核完成" }
+                  data:
+                    $ref: "#/components/schemas/AuditItem"
+        "403":
+          $ref: "#/components/responses/403_Forbidden"
+
+  # ========================================
+  # Admin 管理模块 — 举报处理
+  # ========================================
+  /admin/reports:
+    get:
+      tags: [Admin]
+      summary: 举报列表（管理员）
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - name: status
+          in: query
+          schema:
+            type: integer
+          description: 按处理状态筛选（0待处理 1已处理 2驳回）
+      responses:
+        "200":
+          description: 举报列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ReportItem"
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      totalPages: { type: integer }
+        "403":
+          $ref: "#/components/responses/403_Forbidden"
+
+  /admin/reports/{reportId}/handle:
+    put:
+      tags: [Admin]
+      summary: 处理举报（管理员，可同时下发处罚）
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportHandle"
+      responses:
+        "200":
+          description: 处理完成
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "处理完成" }
+                  data:
+                    $ref: "#/components/schemas/ReportItem"
+        "403":
+          $ref: "#/components/responses/403_Forbidden"
+
+  # ========================================
+  # Admin 管理模块 — 处罚管理
+  # ========================================
+  /admin/punishments:
+    get:
+      tags: [Admin]
+      summary: 处罚记录列表
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - name: userId
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: 按被处罚用户筛选
+      responses:
+        "200":
+          description: 处罚记录列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      records:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Punishment"
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      totalPages: { type: integer }
+        "403":
+          $ref: "#/components/responses/403_Forbidden"
+
+  /admin/punishments/{punishmentId}/revoke:
+    put:
+      tags: [Admin]
+      summary: 撤销处罚
+      parameters:
+        - name: punishmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 已撤销
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: "处罚已撤销" }
+                  data: { nullable: true, example: null }
+        "404":
+          $ref: "#/components/responses/404_NotFound"
