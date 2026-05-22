@@ -336,8 +336,4 @@
  | target_id       | BIGINT       | DEFAULT NULL                               | NULL                | 关联目标ID（用于点击通知跳转） |
  | is_read         | TINYINT(1)   | NOT NULL                                   | 0                   | 是否已读（0未读 1已读） |
  | created_at      | DATETIME     | NOT NULL                                   | CURRENT_TIMESTAMP   | 通知时间 |
-    KEY idx_user_id        (user_id),
-    KEY idx_user_read      (user_id, is_read),
-    KEY idx_created_at     (created_at),
-    CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES user (user_id) ON DELETE CASCADE
-) ENGINEInnoDB DEFAULT CHARSETutf8mb4 COLLATEutf8mb4_unicode_ci COMMENT'消息通知表（新增，支持多类型消息推送）';
+   
