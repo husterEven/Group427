@@ -1,2524 +1,1270 @@
-openapi: 3.0.3
-info:
-  title: 投资论坛系统 API
-  description: |
-    投资论坛系统后端RESTful API接口文档
-    - 认证方式：Bearer Token (JWT)
-    - 请求格式：application/json
-    - 响应格式：application/json
-    
-    ## 接口设计规范
+# 投资论坛系统 API 文档（完整版）
+
+## 基本信息
+
+- **标题**：投资论坛系统 API
+- **描述**：
+  - 投资论坛系统后端RESTful API接口文档
+  - 认证方式：Bearer Token (JWT)
+  - 请求格式：application/json
+  - 响应格式：application/json
+  - 接口设计规范：
     - 使用名词复数形式表示资源
     - HTTP方法：GET(查询)、POST(创建)、PUT(全量更新)、PATCH(部分更新)、DELETE(删除)
     - 状态码：200(成功)、201(创建成功)、400(参数错误)、401(未认证)、403(无权限)、404(资源不存在)、500(服务器错误)
-  version: 1.0.0
-  contact:
-    name: API Support
-    email: support@forum.com
-  license:
-    name: Proprietary
-
-servers:
-  - url: https://api.forum.com/v1
-    description: 生产环境
-  - url: https://staging-api.forum.com/v1
-    description: 预发布环境
-  - url: http://localhost:8080/v1
-    description: 本地开发环境
-
-tags:
-  - name: 认证
-    description: 用户注册、登录、认证相关接口
-  - name: 用户
-    description: 用户资料、偏好设置、成就查询
-  - name: 认证中心
-    description: 实名认证、专业认证、风险测评
-  - name: 内容
-    description: 帖子、评论、动态的增删改查
-  - name: 板块
-    description: 板块与专区信息查询
-  - name: 社交
-    description: 关注、私信、群组功能
-  - name: 搜索
-    description: 全文搜索与筛选
-  - name: 互动
-    description: 点赞、收藏、转发、举报
-  - name: 通知
-    description: 消息通知相关
-  - name: 管理
-    description: 管理员专用接口（需admin权限）
-
-# ==================== 通用组件定义 ====================
-components:
-  securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: 使用JWT Token进行认证，在请求头中添加 `Authorization: Bearer {token}`
-
-  schemas:
-    # ==================== 通用响应结构 ====================
-    ApiResponse:
-      type: object
-      properties:
-        code:
-          type: integer
-          description: 业务状态码，0表示成功
-          example: 0
-        message:
-          type: string
-          description: 响应消息
-          example: success
-        data:
-          type: object
-          description: 响应数据
-          nullable: true
-        timestamp:
-          type: integer
-          format: int64
-          description: 时间戳
-          example: 1702800000000
-
-    PageResponse:
-      type: object
-      properties:
-        code:
-          type: integer
-          example: 0
-        message:
-          type: string
-          example: success
-        data:
-          type: object
-          properties:
-            list:
-              type: array
-              items:
-                type: object
-            total:
-              type: integer
-              description: 总记录数
-            pageNum:
-              type: integer
-              description: 当前页码
-            pageSize:
-              type: integer
-              description: 每页大小
-            pages:
-              type: integer
-              description: 总页数
-
-    # ==================== 用户相关 Schema ====================
-    User:
-      type: object
-      properties:
-        userId:
-          type: integer
-          format: int64
-          description: 用户ID
-          example: 10001
-        nickname:
-          type: string
-          description: 昵称
-          maxLength: 30
-          example: "价值投资客"
-        avatarUrl:
-          type: string
-          description: 头像URL
-          example: "https://cdn.forum.com/avatar/10001.jpg"
-        bio:
-          type: string
-          description: 个人简介
-          maxLength: 200
-          example: "专注价值投资10年"
-        verificationLevel:
-          type: integer
-          description: 认证等级 0-未认证 1-基础 2-实名 3-专业V
-          enum: [0, 1, 2, 3]
-        riskLevel:
-          type: integer
-          description: 风险等级 1-保守 2-稳健 3-平衡 4-进取
-          enum: [1, 2, 3, 4]
-        points:
-          type: integer
-          description: 积分
-        level:
-          type: integer
-          description: 用户等级 1-100
-        postCount:
-          type: integer
-          description: 发帖数
-        followerCount:
-          type: integer
-          description: 粉丝数
-        followeeCount:
-          type: integer
-          description: 关注数
-        registerAt:
-          type: string
-          format: date-time
-          description: 注册时间
-
-    UserProfileUpdate:
-      type: object
-      properties:
-        nickname:
-          type: string
-          maxLength: 30
-        avatarUrl:
-          type: string
-          maxLength: 512
-        bio:
-          type: string
-          maxLength: 200
-        tags:
-          type: array
-          items:
-            type: string
-          description: 投资经验标签
-
-    UserPreference:
-      type: object
-      properties:
-        focusMarkets:
-          type: array
-          items:
-            type: string
-            enum: [A股, 港股, 美股, 基金, 期货]
-          description: 关注市场
-        riskPreference:
-          type: integer
-          enum: [1, 2, 3, 4]
-          description: 风险偏好
-        investmentExp:
-          type: integer
-          enum: [1, 2, 3, 4]
-          description: 投资经验 1-新手 2-进阶 3-资深 4-职业
-        receiveNotification:
-          type: boolean
-          description: 是否接收推送通知
-
-    PrivacySettings:
-      type: object
-      properties:
-        profileVisible:
-          type: integer
-          enum: [0, 1, 2]
-          description: 0-公开 1-仅粉丝 2-仅自己
-        postVisible:
-          type: integer
-          enum: [0, 1, 2]
-        followVisible:
-          type: integer
-          enum: [0, 1, 2]
-        allowSearch:
-          type: boolean
-        allowMessage:
-          type: boolean
-
-    UserAchievement:
-      type: object
-      properties:
-        totalPosts:
-          type: integer
-          description: 累计发帖
-        essencePosts:
-          type: integer
-          description: 精华帖数
-        totalComments:
-          type: integer
-          description: 累计评论
-        totalLikesReceived:
-          type: integer
-          description: 获赞总数
-        influenceScore:
-          type: integer
-          description: 影响力分数
-        badges:
-          type: array
-          items:
-            type: object
-            properties:
-              badgeId:
-                type: integer
-              name:
-                type: string
-              iconUrl:
-                type: string
-              obtainTime:
-                type: string
-                format: date-time
-
-    # ==================== 认证相关 Schema ====================
-    LoginRequest:
-      type: object
-      required:
-        - account
-        - password
-      properties:
-        account:
-          type: string
-          description: 手机号/邮箱/昵称
-          example: "13800000000"
-        password:
-          type: string
-          description: 密码
-          format: password
-          example: "password123"
-        captcha:
-          type: string
-          description: 验证码（可选）
-          example: "A3B9"
-
-    LoginResponse:
-      type: object
-      properties:
-        token:
-          type: string
-          description: JWT Token
-        expireAt:
-          type: integer
-          format: int64
-          description: 过期时间戳
-        user:
-          $ref: '#/components/schemas/User'
-
-    RegisterRequest:
-      type: object
-      required:
-        - registerType
-      properties:
-        registerType:
-          type: string
-          enum: [mobile, email]
-        mobile:
-          type: string
-          pattern: '^1[3-9]\d{9}$'
-        email:
-          type: string
-          format: email
-        verificationCode:
-          type: string
-        password:
-          type: string
-          minLength: 6
-          maxLength: 20
-        agreement:
-          type: boolean
-          description: 是否同意用户协议
-
-    SendVerificationCodeRequest:
-      type: object
-      required:
-        - contact
-        - type
-      properties:
-        contact:
-          type: string
-          description: 手机号或邮箱
-        type:
-          type: string
-          enum: [register, login, bind, reset]
-          description: 验证码类型
-
-    ThirdPartyLoginRequest:
-      type: object
-      required:
-        - platform
-        - authCode
-      properties:
-        platform:
-          type: string
-          enum: [wechat, weibo]
-        authCode:
-          type: string
-          description: 第三方授权码
-
-    # ==================== 认证中心 Schema ====================
-    RealNameVerifyRequest:
-      type: object
-      required:
-        - realName
-        - idCardNo
-        - idCardFrontUrl
-        - idCardBackUrl
-        - faceImageUrl
-      properties:
-        realName:
-          type: string
-        idCardNo:
-          type: string
-          pattern: '^[1-9]\d{5}(18|19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{3}[\dXx]$'
-        idCardFrontUrl:
-          type: string
-        idCardBackUrl:
-          type: string
-        faceImageUrl:
-          type: string
-
-    ProfessionVerifyRequest:
-      type: object
-      properties:
-        certificateUrls:
-          type: array
-          items:
-            type: string
-        educationUrls:
-          type: array
-          items:
-            type: string
-        professionType:
-          type: string
-          description: 从业类型
-
-    RiskAssessmentSubmitRequest:
-      type: object
-      required:
-        - answers
-      properties:
-        answers:
-          type: array
-          items:
-            type: object
-            properties:
-              questionId:
-                type: string
-              selectedOption:
-                type: integer
-
-    RiskAssessmentResult:
-      type: object
-      properties:
-        level:
-          type: integer
-          description: 风险等级
-        levelName:
-          type: string
-        score:
-          type: integer
-        description:
-          type: string
-
-    # ==================== 帖子相关 Schema ====================
-    Post:
-      type: object
-      properties:
-        postId:
-          type: integer
-          format: int64
-        author:
-          $ref: '#/components/schemas/UserSimple'
-        title:
-          type: string
-        summary:
-          type: string
-        contentType:
-          type: integer
-          description: 1-普通 2-长文 3-投票 4-动态
-        sectionId:
-          type: integer
-        zoneId:
-          type: integer
-        stockCode:
-          type: string
-        isPinned:
-          type: boolean
-        isEssence:
-          type: boolean
-        stats:
-          type: object
-          properties:
-            likes:
-              type: integer
-            favorites:
-              type: integer
-            shares:
-              type: integer
-            comments:
-              type: integer
-            views:
-              type: integer
-        publishedAt:
-          type: string
-          format: date-time
-
-    PostDetail:
-      allOf:
-        - $ref: '#/components/schemas/Post'
-        - type: object
-          properties:
-            content:
-              type: string
-            richContent:
-              type: string
-            attachments:
-              type: array
-              items:
-                $ref: '#/components/schemas/Attachment'
-            voteInfo:
-              $ref: '#/components/schemas/VoteInfo'
-
-    PostCreateRequest:
-      type: object
-      required:
-        - title
-        - content
-        - sectionId
-      properties:
-        title:
-          type: string
-          maxLength: 200
-        content:
-          type: string
-        contentType:
-          type: integer
-          default: 1
-        sectionId:
-          type: integer
-        zoneId:
-          type: integer
-        stockCode:
-          type: string
-        attachments:
-          type: array
-          items:
-            type: string
-          description: 附件ID列表
-
-    LongArticleRequest:
-      allOf:
-        - $ref: '#/components/schemas/PostCreateRequest'
-        - type: object
-          properties:
-            richContent:
-              type: string
-              description: HTML格式富文本
-            coverImage:
-              type: string
-
-    VoteCreateRequest:
-      type: object
-      required:
-        - title
-        - options
-      properties:
-        title:
-          type: string
-        options:
-          type: array
-          minItems: 2
-          maxItems: 10
-          items:
-            type: string
-        maxChoices:
-          type: integer
-          minimum: 1
-          maximum: 5
-          default: 1
-        durationHours:
-          type: integer
-          default: 24
-        isAnonymous:
-          type: boolean
-          default: false
-
-    VoteInfo:
-      type: object
-      properties:
-        voteId:
-          type: integer
-        title:
-          type: string
-        options:
-          type: array
-          items:
-            type: object
-            properties:
-              index:
-                type: integer
-              text:
-                type: string
-              count:
-                type: integer
-              percentage:
-                type: number
-        maxChoices:
-          type: integer
-        totalVotes:
-          type: integer
-        isEnded:
-          type: boolean
-        userSelected:
-          type: array
-          items:
-            type: integer
-          description: 当前用户选择的选项（已登录时）
-
-    VoteCastRequest:
-      type: object
-      required:
-        - selectedOptions
-      properties:
-        selectedOptions:
-          type: array
-          items:
-            type: integer
-          minItems: 1
-
-    # ==================== 评论相关 Schema ====================
-    Comment:
-      type: object
-      properties:
-        commentId:
-          type: integer
-          format: int64
-        postId:
-          type: integer
-        author:
-          $ref: '#/components/schemas/UserSimple'
-        content:
-          type: string
-        parentId:
-          type: integer
-        rootId:
-          type: integer
-        stats:
-          type: object
-          properties:
-            likes:
-              type: integer
-            replies:
-              type: integer
-        publishedAt:
-          type: string
-          format: date-time
-        atUsers:
-          type: array
-          items:
-            $ref: '#/components/schemas/UserSimple'
-
-    CommentCreateRequest:
-      type: object
-      required:
-        - content
-      properties:
-        content:
-          type: string
-          maxLength: 2000
-        parentId:
-          type: integer
-          format: int64
-          description: 回复的评论ID
-        atUserIds:
-          type: array
-          items:
-            type: integer
-
-    # ==================== 板块相关 Schema ====================
-    Section:
-      type: object
-      properties:
-        sectionId:
-          type: integer
-        name:
-          type: string
-        slug:
-          type: string
-        icon:
-          type: string
-        description:
-          type: string
-        postCount:
-          type: integer
-        children:
-          type: array
-          items:
-            $ref: '#/components/schemas/Zone'
-
-    Zone:
-      type: object
-      properties:
-        zoneId:
-          type: integer
-        sectionId:
-          type: integer
-        name:
-          type: string
-        slug:
-          type: string
-        icon:
-          type: string
-        description:
-          type: string
-        postCount:
-          type: integer
-
-    # ==================== 社交相关 Schema ====================
-    UserSimple:
-      type: object
-      properties:
-        userId:
-          type: integer
-        nickname:
-          type: string
-        avatarUrl:
-          type: string
-        verificationLevel:
-          type: integer
-
-    FollowInfo:
-      type: object
-      properties:
-        followerCount:
-          type: integer
-        followeeCount:
-          type: integer
-        isFollowing:
-          type: boolean
-        isFollowed:
-          type: boolean
-        isStarred:
-          type: boolean
-
-    PrivateMessage:
-      type: object
-      properties:
-        messageId:
-          type: integer
-        sessionId:
-          type: string
-        sender:
-          $ref: '#/components/schemas/UserSimple'
-        receiver:
-          $ref: '#/components/schemas/UserSimple'
-        messageType:
-          type: integer
-        content:
-          type: string
-        isRead:
-          type: boolean
-        isRecalled:
-          type: boolean
-        sentAt:
-          type: string
-          format: date-time
-
-    PrivateMessageSendRequest:
-      type: object
-      required:
-        - receiverId
-        - content
-      properties:
-        receiverId:
-          type: integer
-        messageType:
-          type: integer
-          default: 1
-        content:
-          type: string
-          maxLength: 2000
-
-    Group:
-      type: object
-      properties:
-        groupId:
-          type: integer
-        name:
-          type: string
-        avatar:
-          type: string
-        introduction:
-          type: string
-        tags:
-          type: array
-          items:
-            type: string
-        mode:
-          type: integer
-        memberCount:
-          type: integer
-        postCount:
-          type: integer
-        owner:
-          $ref: '#/components/schemas/UserSimple'
-        createdAt:
-          type: string
-          format: date-time
-
-    GroupCreateRequest:
-      type: object
-      required:
-        - name
-      properties:
-        name:
-          type: string
-          maxLength: 50
-        introduction:
-          type: string
-          maxLength: 200
-        tags:
-          type: array
-          items:
-            type: string
-        mode:
-          type: integer
-          default: 1
-        avatar:
-          type: string
-
-    # ==================== 互动相关 Schema ====================
-    InteractionStats:
-      type: object
-      properties:
-        liked:
-          type: boolean
-        favorited:
-          type: boolean
-        shared:
-          type: boolean
-        likeCount:
-          type: integer
-        favoriteCount:
-          type: integer
-        shareCount:
-          type: integer
-
-    ReportRequest:
-      type: object
-      required:
-        - targetType
-        - targetId
-        - reasonType
-      properties:
-        targetType:
-          type: integer
-          enum: [1, 2, 3]
-          description: 1-帖子 2-评论 3-用户
-        targetId:
-          type: integer
-        reasonType:
-          type: integer
-          enum: [1, 2, 3, 4, 5]
-        reasonDesc:
-          type: string
-          maxLength: 200
-
-    # ==================== 搜索相关 Schema ====================
-    SearchRequest:
-      type: object
-      properties:
-        keyword:
-          type: string
-          description: 搜索关键词
-        type:
-          type: string
-          enum: [all, post, user, stock]
-          default: all
-        sortBy:
-          type: string
-          enum: [relevance, time, likes, comments]
-          default: relevance
-        timeRange:
-          type: string
-          enum: [all, today, week, month, year]
-          default: all
-        sectionId:
-          type: integer
-          description: 板块筛选
-        isEssence:
-          type: boolean
-        pageNum:
-          type: integer
-          minimum: 1
-          default: 1
-        pageSize:
-          type: integer
-          minimum: 1
-          maximum: 50
-          default: 20
-
-    SearchResult:
-      type: object
-      properties:
-        keyword:
-          type: string
-        total:
-          type: integer
-        posts:
-          type: array
-          items:
-            $ref: '#/components/schemas/Post'
-        users:
-          type: array
-          items:
-            $ref: '#/components/schemas/UserSimple'
-        stocks:
-          type: array
-          items:
-            type: object
-            properties:
-              code:
-                type: string
-              name:
-                type: string
-              postCount:
-                type: integer
-
-    # ==================== 通知相关 Schema ====================
-    Notification:
-      type: object
-      properties:
-        notificationId:
-          type: integer
-        type:
-          type: string
-          enum: [like, comment, follow, system, message]
-        title:
-          type: string
-        content:
-          type: string
-        isRead:
-          type: boolean
-        targetId:
-          type: integer
-          description: 关联的目标ID（帖子ID等）
-        createdAt:
-          type: string
-          format: date-time
-
-    # ==================== 通用 Schema ====================
-    Attachment:
-      type: object
-      properties:
-        attachmentId:
-          type: integer
-        fileName:
-          type: string
-        fileSize:
-          type: integer
-        fileUrl:
-          type: string
-
-    HotTopic:
-      type: object
-      properties:
-        rank:
-          type: integer
-        name:
-          type: string
-        heatValue:
-          type: integer
-        postCount:
-          type: integer
-        type:
-          type: string
-          enum: [topic, stock]
-
-# ==================== API 路径定义 ====================
-paths:
-  # ==================== 认证模块 ====================
-  /auth/login:
-    post:
-      tags: [认证]
-      summary: 用户登录
-      operationId: login
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LoginRequest'
-      responses:
-        '200':
-          description: 登录成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/LoginResponse'
-        '401':
-          description: 用户名或密码错误
-
-  /auth/logout:
-    post:
-      tags: [认证]
-      summary: 用户登出
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: 登出成功
-
-  /auth/register:
-    post:
-      tags: [认证]
-      summary: 用户注册
-      operationId: register
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RegisterRequest'
-      responses:
-        '201':
-          description: 注册成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/LoginResponse'
-
-  /auth/captcha/send:
-    post:
-      tags: [认证]
-      summary: 发送验证码
-      operationId: sendCaptcha
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SendVerificationCodeRequest'
-      responses:
-        '200':
-          description: 发送成功
-
-  /auth/third-party/login:
-    post:
-      tags: [认证]
-      summary: 第三方登录
-      operationId: thirdPartyLogin
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ThirdPartyLoginRequest'
-      responses:
-        '200':
-          description: 登录成功
-
-  /auth/refresh:
-    post:
-      tags: [认证]
-      summary: 刷新Token
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: 刷新成功
-
-  # ==================== 用户模块 ====================
-  /users/me:
-    get:
-      tags: [用户]
-      summary: 获取当前用户信息
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/User'
-
-    put:
-      tags: [用户]
-      summary: 更新当前用户资料
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UserProfileUpdate'
-      responses:
-        '200':
-          description: 更新成功
-
-  /users/{userId}:
-    get:
-      tags: [用户]
-      summary: 获取指定用户信息
-      parameters:
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: integer
-            format: int64
-      responses:
-        '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/User'
-
-  /users/me/preference:
-    get:
-      tags: [用户]
-      summary: 获取用户偏好设置
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: 成功
-    put:
-      tags: [用户]
-      summary: 更新用户偏好设置
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UserPreference'
-      responses:
-        '200':
-          description: 更新成功
-
-  /users/me/privacy:
-    get:
-      tags: [用户]
-      summary: 获取隐私设置
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: 成功
-    put:
-      tags: [用户]
-      summary: 更新隐私设置
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PrivacySettings'
-      responses:
-        '200':
-          description: 更新成功
-
-  /users/me/achievement:
-    get:
-      tags: [用户]
-      summary: 获取用户成就
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/UserAchievement'
-
-  # ==================== 认证中心模块 ====================
-  /verify/real-name:
-    post:
-      tags: [认证中心]
-      summary: 提交实名认证
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RealNameVerifyRequest'
-      responses:
-        '200':
-          description: 提交成功
-
-  /verify/profession:
-    post:
-      tags: [认证中心]
-      summary: 提交专业认证
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ProfessionVerifyRequest'
-      responses:
-        '200':
-          description: 提交成功
-
-  /verify/status:
-    get:
-      tags: [认证中心]
-      summary: 获取认证状态
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: 成功
-
-  /risk-assessment:
-    post:
-      tags: [认证中心]
-      summary: 提交风险测评
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RiskAssessmentSubmitRequest'
-      responses:
-        '200':
-          description: 提交成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/RiskAssessmentResult'
-
-    get:
-      tags: [认证中心]
-      summary: 获取当前风险测评结果
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: 成功
-
-  # ==================== 内容模块 - 帖子 ====================
-  /posts:
-    get:
-      tags: [内容]
-      summary: 获取帖子列表
-      parameters:
-        - name: sectionId
-          in: query
-          schema:
-            type: integer
-        - name: zoneId
-          in: query
-          schema:
-            type: integer
-        - name: sortBy
-          in: query
-          schema:
-            type: string
-            enum: [latest, hottest, essence]
-            default: latest
-        - name: pageNum
-          in: query
-          schema:
-            type: integer
-            default: 1
-        - name: pageSize
-          in: query
-          schema:
-            type: integer
-            default: 20
-      responses:
-        '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PageResponse'
-
-    post:
-      tags: [内容]
-      summary: 发布普通帖子
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PostCreateRequest'
-      responses:
-        '201':
-          description: 发布成功
-
-  /posts/long-article:
-    post:
-      tags: [内容]
-      summary: 发布长文分析
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LongArticleRequest'
-      responses:
-        '201':
-          description: 发布成功
-
-  /posts/vote:
-    post:
-      tags: [内容]
-      summary: 发布投票帖
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '#/components/schemas/PostCreateRequest'
-                - type: object
-                  properties:
-                    vote:
-                      $ref: '#/components/schemas/VoteCreateRequest'
-      responses:
-        '201':
-          description: 发布成功
-
-  /posts/{postId}:
-    get:
-      tags: [内容]
-      summary: 获取帖子详情
-      parameters:
-        - name: postId
-          in: path
-          required: true
-          schema:
-            type: integer
-            format: int64
-      responses:
-        '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/PostDetail'
-
-    put:
-      tags: [内容]
-      summary: 编辑帖子
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: postId
-          in: path
-          required: true
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PostCreateRequest'
-      responses:
-        '200':
-          description: 更新成功
-
-    delete:
-      tags: [内容]
-      summary: 删除帖子
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: postId
-          in: path
-          required: true
-      responses:
-        '204':
-          description: 删除成功
-
-  /posts/{postId}/vote/cast:
-    post:
-      tags: [内容]
-      summary: 参与投票
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: postId
-          in: path
-          required: true
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/VoteCastRequest'
-      responses:
-        '200':
-          description: 投票成功
-
-  /posts/{postId}/vote/result:
-    get:
-      tags: [内容]
-      summary: 获取投票结果
-      parameters:
-        - name: postId
-          in: path
-          required: true
-      responses:
-        '200':
-          description: 成功
-
-  /posts/{postId}/interaction:
-    get:
-      tags: [互动]
-      summary: 获取帖子互动统计
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: postId
-          in: path
-          required: true
-      responses:
-        '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/InteractionStats'
-
-  /posts/{postId}/like:
-    post:
-      tags: [互动]
-      summary: 点赞帖子
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: postId
-          in: path
-          required: true
-      responses:
-        '200':
-          description: 成功
-
-    delete:
-      tags: [互动]
-      summary: 取消点赞
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: postId
-          in: path
-          required: true
-      responses:
-        '204':
-          description: 取消成功
-
-  /posts/{postId}/favorite:
-    post:
-      tags: [互动]
-      summary: 收藏帖子
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: postId
-          in: path
-          required: true
-      responses:
-        '200':
-          description: 成功
-
-    delete:
-      tags: [互动]
-      summary: 取消收藏
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: postId
-          in: path
-          required: true
-      responses:
-        '204':
-          description: 取消成功
-
-  /posts/{postId}/share:
-    post:
-      tags: [互动]
-      summary: 转发帖子
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: postId
-          in: path
-          required: true
-      responses:
-        '200':
-          description: 成功
-
-  # ==================== 内容模块 - 评论 ====================
-  /posts/{postId}/comments:
-    get:
-      tags: [内容]
-      summary: 获取帖子评论列表
-      parameters:
-        - name: postId
-          in: path
-          required: true
-        - name: pageNum
-          in: query
-          schema:
-            type: integer
-            default: 1
-        - name: pageSize
-          in: query
-          schema:
-            type: integer
-            default: 20
-        - name: sortBy
-          in: query
-          schema:
-            type: string
-            enum: [latest, hottest]
-            default: latest
-      responses:
-        '200':
-          description: 成功
-
-    post:
-      tags: [内容]
-      summary: 发表评论
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: postId
-          in: path
-          required: true
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CommentCreateRequest'
-      responses:
-        '201':
-          description: 发表成功
-
-  /comments/{commentId}:
-    delete:
-      tags: [内容]
-      summary: 删除评论
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: commentId
-          in: path
-          required: true
-      responses:
-        '204':
-          description: 删除成功
-
-  /comments/{commentId}/like:
-    post:
-      tags: [互动]
-      summary: 点赞评论
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: commentId
-          in: path
-          required: true
-      responses:
-        '200':
-          description: 成功
-
-    delete:
-      tags: [互动]
-      summary: 取消点赞评论
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: commentId
-          in: path
-          required: true
-      responses:
-        '204':
-          description: 取消成功
-
-  # ==================== 板块模块 ====================
-  /sections:
-    get:
-      tags: [板块]
-      summary: 获取所有板块
-      responses:
-        '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Section'
-
-  /sections/{sectionId}/zones:
-    get:
-      tags: [板块]
-      summary: 获取板块下的专区
-      parameters:
-        - name: sectionId
-          in: path
-          required: true
-      responses:
-        '200':
-          description: 成功
-
-  # ==================== 盘中动态 ====================
-  /dynamics:
-    get:
-      tags: [内容]
-      summary: 获取实时动态列表（时间线）
-      parameters:
-        - name: pageNum
-          in: query
-          schema:
-            type: integer
-            default: 1
-        - name: pageSize
-          in: query
-          schema:
-            type: integer
-            default: 20
-      responses:
-        '200':
-          description: 成功
-
-    post:
-      tags: [内容]
-      summary: 发布盘中动态
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                content:
-                  type: string
-                  maxLength: 500
-                imageUrls:
-                  type: array
-                  items:
-                    type: string
-                stockCode:
-                  type: string
-      responses:
-        '201':
-          description: 发布成功
-
-  # ==================== 社交模块 - 关注 ====================
-  /users/{userId}/follow:
-    post:
-      tags: [社交]
-      summary: 关注用户
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: userId
-          in: path
-          required: true
-      responses:
-        '200':
-          description: 关注成功
-
-    delete:
-      tags: [社交]
-      summary: 取消关注
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: userId
-          in: path
-          required: true
-      responses:
-        '204':
-          description: 取消成功
-
-  /users/{userId}/follow/star:
-    post:
-      tags: [社交]
-      summary: 设为星标关注
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: userId
-          in: path
-          required: true
-      responses:
-        '200':
-          description: 成功
-
-    delete:
-      tags: [社交]
-      summary: 取消星标
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: userId
-          in: path
-          required: true
-      responses:
-        '204':
-          description: 成功
-
-  /users/me/followers:
-    get:
-      tags: [社交]
-      summary: 获取我的粉丝列表
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: pageNum
-          in: query
-          schema:
-            type: integer
-            default: 1
-        - name: pageSize
-          in: query
-          schema:
-            type: integer
-            default: 20
-      responses:
-        '200':
-          description: 成功
-
-  /users/me/followees:
-    get:
-      tags: [社交]
-      summary: 获取我关注的人列表
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: pageNum
-          in: query
-          schema:
-            type: integer
-            default: 1
-        - name: pageSize
-          in: query
-          schema:
-            type: integer
-            default: 20
-        - name: starredOnly
-          in: query
-          schema:
-            type: boolean
-            default: false
-      responses:
-        '200':
-          description: 成功
-
-  /users/{userId}/follow/status:
-    get:
-      tags: [社交]
-      summary: 获取关注状态
-      parameters:
-        - name: userId
-          in: path
-          required: true
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/FollowInfo'
-
-  # ==================== 社交模块 - 私信 ====================
-  /messages:
-    get:
-      tags: [社交]
-      summary: 获取会话列表
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: pageNum
-          in: query
-          schema:
-            type: integer
-            default: 1
-        - name: pageSize
-          in: query
-          schema:
-            type: integer
-            default: 20
-      responses:
-        '200':
-          description: 成功
-
-  /messages/session/{sessionId}:
-    get:
-      tags: [社交]
-      summary: 获取与某用户的聊天记录
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: sessionId
-          in: path
-          required: true
-        - name: pageNum
-          in: query
-          schema:
-            type: integer
-            default: 1
-        - name: pageSize
-          in: query
-          schema:
-            type: integer
-            default: 50
-      responses:
-        '200':
-          description: 成功
-
-    post:
-      tags: [社交]
-      summary: 发送私信
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: sessionId
-          in: path
-          required: true
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PrivateMessageSendRequest'
-      responses:
-        '201':
-          description: 发送成功
-
-  /messages/{messageId}/recall:
-    post:
-      tags: [社交]
-      summary: 撤回私信
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: messageId
-          in: path
-          required: true
-      responses:
-        '200':
-          description: 撤回成功
-
-  /messages/unread/count:
-    get:
-      tags: [社交]
-      summary: 获取未读私信数量
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: 成功
-
-  # ==================== 社交模块 - 群组 ====================
-  /groups:
-    get:
-      tags: [社交]
-      summary: 获取群组列表
-      parameters:
-        - name: keyword
-          in: query
-          schema:
-            type: string
-        - name: pageNum
-          in: query
-          default: 1
-        - name: pageSize
-          in: query
-          default: 20
-      responses:
-        '200':
-          description: 成功
-
-    post:
-      tags: [社交]
-      summary: 创建群组
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GroupCreateRequest'
-      responses:
-        '201':
-          description: 创建成功
-
-  /groups/{groupId}:
-    get:
-      tags: [社交]
-      summary: 获取群组详情
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-      responses:
-        '200':
-          description: 成功
-
-    put:
-      tags: [社交]
-      summary: 编辑群组信息
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GroupCreateRequest'
-      responses:
-        '200':
-          description: 更新成功
-
-  /groups/{groupId}/join:
-    post:
-      tags: [社交]
-      summary: 申请加入群组
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-      responses:
-        '200':
-          description: 申请成功
-
-  /groups/{groupId}/leave:
-    post:
-      tags: [社交]
-      summary: 退出群组
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-      responses:
-        '200':
-          description: 退出成功
-
-  /groups/{groupId}/members:
-    get:
-      tags: [社交]
-      summary: 获取群组成员列表
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-        - name: pageNum
-          in: query
-          default: 1
-        - name: pageSize
-          in: query
-          default: 50
-      responses:
-        '200':
-          description: 成功
-
-  /groups/{groupId}/posts:
-    get:
-      tags: [社交]
-      summary: 获取群组帖子列表
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-        - name: pageNum
-          in: query
-          default: 1
-        - name: pageSize
-          in: query
-          default: 20
-      responses:
-        '200':
-          description: 成功
-
-    post:
-      tags: [社交]
-      summary: 在群组中发帖
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                content:
-                  type: string
-                attachments:
-                  type: array
-                  items:
-                    type: string
-      responses:
-        '201':
-          description: 发布成功
-
-  # ==================== 搜索模块 ====================
-  /search:
-    get:
-      tags: [搜索]
-      summary: 全文搜索
-      parameters:
-        - name: keyword
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: type
-          in: query
-          schema:
-            $ref: '#/components/schemas/SearchRequest/properties/type'
-        - name: sortBy
-          in: query
-          schema:
-            $ref: '#/components/schemas/SearchRequest/properties/sortBy'
-        - name: pageNum
-          in: query
-          schema:
-            type: integer
-            default: 1
-        - name: pageSize
-          in: query
-          schema:
-            type: integer
-            default: 20
-      responses:
-        '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/SearchResult'
-
-    post:
-      tags: [搜索]
-      summary: 高级搜索（POST方式）
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SearchRequest'
-      responses:
-        '200':
-          description: 成功
-
-  /search/suggest:
-    get:
-      tags: [搜索]
-      summary: 搜索联想（自动补全）
-      parameters:
-        - name: keyword
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 10
-      responses:
-        '200':
-          description: 成功
-
-  /search/hot-keywords:
-    get:
-      tags: [搜索]
-      summary: 获取热门搜索关键词
-      parameters:
-        - name: period
-          in: query
-          schema:
-            type: string
-            enum: [day, week]
-            default: day
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 10
-      responses:
-        '200':
-          description: 成功
-
-  # ==================== 首页推荐模块 ====================
-  /feed/recommend:
-    get:
-      tags: [内容]
-      summary: 个性化推荐流
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: pageNum
-          in: query
-          schema:
-            type: integer
-            default: 1
-        - name: pageSize
-          in: query
-          schema:
-            type: integer
-            default: 20
-      responses:
-        '200':
-          description: 成功
-
-  /feed/hot:
-    get:
-      tags: [内容]
-      summary: 热榜列表
-      parameters:
-        - name: period
-          in: query
-          schema:
-            type: string
-            enum: [day, week]
-            default: day
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 20
-      responses:
-        '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/HotTopic'
-
-  /feed/essence:
-    get:
-      tags: [内容]
-      summary: 编辑精选列表
-      parameters:
-        - name: pageNum
-          in: query
-          default: 1
-        - name: pageSize
-          in: query
-          default: 20
-      responses:
-        '200':
-          description: 成功
-
-  /feed/following:
-    get:
-      tags: [内容]
-      summary: 关注动态流
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: pageNum
-          in: query
-          default: 1
-        - name: pageSize
-          in: query
-          default: 20
-      responses:
-        '200':
-          description: 成功
-
-  # ==================== 通知模块 ====================
-  /notifications:
-    get:
-      tags: [通知]
-      summary: 获取通知列表
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: type
-          in: query
-          schema:
-            type: string
-            enum: [like, comment, follow, system, message]
-        - name: isRead
-          in: query
-          schema:
-            type: boolean
-        - name: pageNum
-          in: query
-          default: 1
-        - name: pageSize
-          in: query
-          default: 20
-      responses:
-        '200':
-          description: 成功
-
-  /notifications/unread-count:
-    get:
-      tags: [通知]
-      summary: 获取未读通知数量
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: 成功
-
-  /notifications/{notificationId}/read:
-    put:
-      tags: [通知]
-      summary: 标记通知为已读
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: notificationId
-          in: path
-          required: true
-      responses:
-        '200':
-          description: 成功
-
-  /notifications/read-all:
-    put:
-      tags: [通知]
-      summary: 标记所有通知为已读
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: 成功
-
-  # ==================== 举报模块 ====================
-  /reports:
-    post:
-      tags: [互动]
-      summary: 提交举报
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ReportRequest'
-      responses:
-        '201':
-          description: 举报成功
-
-  # ==================== 附件模块 ====================
-  /attachments/upload:
-    post:
-      tags: [内容]
-      summary: 上传附件
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-                fileType:
-                  type: integer
-                  description: 1-PDF 2-Excel 3-图片
-      responses:
-        '200':
-          description: 上传成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiResponse'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/Attachment'
-
-  # ==================== 管理模块（管理员专用）====================
-  /admin/audit/pending:
-    get:
-      tags: [管理]
-      summary: 获取待审核列表
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: targetType
-          in: query
-          schema:
-            type: integer
-        - name: pageNum
-          in: query
-          default: 1
-        - name: pageSize
-          in: query
-          default: 20
-      responses:
-        '200':
-          description: 成功
-
-  /admin/audit/{auditId}/approve:
-    post:
-      tags: [管理]
-      summary: 审核通过
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: auditId
-          in: path
-          required: true
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                remark:
-                  type: string
-      responses:
-        '200':
-          description: 成功
-
-  /admin/audit/{auditId}/reject:
-    post:
-      tags: [管理]
-      summary: 审核驳回
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: auditId
-          in: path
-          required: true
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - reason
-              properties:
-                reason:
-                  type: string
-      responses:
-        '200':
-          description: 成功
-
-  /admin/users/{userId}/punish:
-    post:
-      tags: [管理]
-      summary: 处罚用户
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: userId
-          in: path
-          required: true
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - punishType
-                - reason
-              properties:
-                punishType:
-                  type: integer
-                  enum: [1, 2, 3]
-                  description: 1-警告 2-禁言 3-封号
-                reason:
-                  type: string
-                durationDays:
-                  type: integer
-                  description: 处罚天数，0表示永久
-      responses:
-        '200':
-          description: 成功
-
-  /admin/users/{userId}/punish/{punishId}/lift:
-    post:
-      tags: [管理]
-      summary: 解除处罚
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: userId
-          in: path
-          required: true
-        - name: punishId
-          in: path
-          required: true
-      responses:
-        '200':
-          description: 成功
-
-  /admin/sections:
-    post:
-      tags: [管理]
-      summary: 新增板块
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Section'
-      responses:
-        '201':
-          description: 创建成功
-
-    put:
-      tags: [管理]
-      summary: 编辑板块
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Section'
-      responses:
-        '200':
-          description: 更新成功
-
-    delete:
-      tags: [管理]
-      summary: 删除板块
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: sectionId
-          in: query
-          required: true
-      responses:
-        '204':
-          description: 删除成功
-
-  /admin/statistics/overview:
-    get:
-      tags: [管理]
-      summary: 获取平台整体数据统计
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: date
-          in: query
-          schema:
-            type: string
-            format: date
-      responses:
-        '200':
-          description: 成功
-
-  /admin/statistics/trend:
-    get:
-      tags: [管理]
-      summary: 获取数据趋势
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: startDate
-          in: query
-          required: true
-          schema:
-            type: string
-            format: date
-        - name: endDate
-          in: query
-          required: true
-          schema:
-            type: string
-            format: date
-        - name: metrics
-          in: query
-          schema:
-            type: string
-            description: 指标列表，逗号分隔
-      responses:
-        '200':
-          description: 成功
+- **版本**：1.0.0
+- **联系方式**：API Support <support@forum.com>
+- **许可证**：Proprietary
+
+## 服务器地址
+
+| 环境 | URL |
+|------|-----|
+| 生产环境 | `https://api.forum.com/v1` |
+| 预发布环境 | `https://staging-api.forum.com/v1` |
+| 本地开发环境 | `http://localhost:8080/v1` |
+
+## 标签
+
+| 标签 | 说明 |
+|------|------|
+| 认证 | 用户注册、登录、认证相关接口 |
+| 用户 | 用户资料、偏好设置、成就查询 |
+| 认证中心 | 实名认证、专业认证、风险测评 |
+| 内容 | 帖子、评论、动态的增删改查 |
+| 板块 | 板块与专区信息查询 |
+| 社交 | 关注、私信、群组功能 |
+| 搜索 | 全文搜索与筛选 |
+| 互动 | 点赞、收藏、转发、举报 |
+| 通知 | 消息通知相关 |
+| 管理 | 管理员专用接口（需admin权限） |
+
+---
+
+## 通用组件定义
+
+### securitySchemes
+
+#### BearerAuth
+- **类型**：http
+- **方案**：bearer
+- **Bearer格式**：JWT
+- **描述**：使用JWT Token进行认证，在请求头中添加 `Authorization: Bearer {token}`
+
+---
+
+### schemas（数据模型）
+
+#### ApiResponse
+通用响应结构
+
+| 属性 | 类型 | 描述 | 示例 |
+|------|------|------|------|
+| code | integer | 业务状态码，0表示成功 | 0 |
+| message | string | 响应消息 | "success" |
+| data | object | 响应数据，可空 | null |
+| timestamp | integer (int64) | 时间戳 | 1702800000000 |
+
+#### PageResponse
+分页响应结构
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| code | integer | 状态码，示例0 |
+| message | string | 消息，示例"success" |
+| data | object | 数据对象 |
+| data.list | array | 数据列表 |
+| data.total | integer | 总记录数 |
+| data.pageNum | integer | 当前页码 |
+| data.pageSize | integer | 每页大小 |
+| data.pages | integer | 总页数 |
+
+---
+
+### 用户相关 Schema
+
+#### User
+用户信息
+
+| 属性 | 类型 | 约束 | 描述 | 示例 |
+|------|------|------|------|------|
+| userId | integer (int64) | - | 用户ID | 10001 |
+| nickname | string | maxLength:30 | 昵称 | "价值投资客" |
+| avatarUrl | string | - | 头像URL | "https://cdn.forum.com/avatar/10001.jpg" |
+| bio | string | maxLength:200 | 个人简介 | "专注价值投资10年" |
+| verificationLevel | integer | enum: [0,1,2,3] | 认证等级：0-未认证，1-基础，2-实名，3-专业V | 3 |
+| riskLevel | integer | enum: [1,2,3,4] | 风险等级：1-保守，2-稳健，3-平衡，4-进取 | 3 |
+| points | integer | - | 积分 | 1250 |
+| level | integer | 范围1-100 | 用户等级 | 5 |
+| postCount | integer | - | 发帖数 | 42 |
+| followerCount | integer | - | 粉丝数 | 128 |
+| followeeCount | integer | - | 关注数 | 86 |
+| registerAt | string (date-time) | - | 注册时间 | "2023-01-01T00:00:00Z" |
+
+#### UserProfileUpdate
+用户资料更新
+
+| 属性 | 类型 | 约束 | 描述 |
+|------|------|------|------|
+| nickname | string | maxLength:30 | 昵称 |
+| avatarUrl | string | maxLength:512 | 头像URL |
+| bio | string | maxLength:200 | 个人简介 |
+| tags | array of strings | - | 投资经验标签 |
+
+#### UserPreference
+用户偏好设置
+
+| 属性 | 类型 | 约束 | 描述 |
+|------|------|------|------|
+| focusMarkets | array of strings | enum: ["A股","港股","美股","基金","期货"] | 关注市场 |
+| riskPreference | integer | enum: [1,2,3,4] | 风险偏好：1-保守，2-稳健，3-平衡，4-进取 |
+| investmentExp | integer | enum: [1,2,3,4] | 投资经验：1-新手，2-进阶，3-资深，4-职业 |
+| receiveNotification | boolean | - | 是否接收推送通知 |
+
+#### PrivacySettings
+隐私设置
+
+| 属性 | 类型 | 约束 | 描述 |
+|------|------|------|------|
+| profileVisible | integer | enum: [0,1,2] | 0-公开，1-仅粉丝，2-仅自己 |
+| postVisible | integer | enum: [0,1,2] | 同上 |
+| followVisible | integer | enum: [0,1,2] | 同上 |
+| allowSearch | boolean | - | 是否允许被搜索 |
+| allowMessage | boolean | - | 是否允许私信 |
+
+#### UserAchievement
+用户成就
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| totalPosts | integer | 累计发帖 |
+| essencePosts | integer | 精华帖数 |
+| totalComments | integer | 累计评论 |
+| totalLikesReceived | integer | 获赞总数 |
+| influenceScore | integer | 影响力分数 |
+| badges | array of objects | 徽章列表 |
+| badges[].badgeId | integer | 徽章ID |
+| badges[].name | string | 徽章名称 |
+| badges[].iconUrl | string | 图标URL |
+| badges[].obtainTime | string (date-time) | 获得时间 |
+
+---
+
+### 认证相关 Schema
+
+#### LoginRequest
+登录请求
+
+| 属性 | 类型 | 必填 | 描述 | 示例 |
+|------|------|------|------|------|
+| account | string | 是 | 手机号/邮箱/昵称 | "13800000000" |
+| password | string | 是 | 密码 | "password123" |
+| captcha | string | 否 | 验证码 | "A3B9" |
+
+#### LoginResponse
+登录响应
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| token | string | JWT Token |
+| expireAt | integer (int64) | 过期时间戳 |
+| user | User | 用户信息 |
+
+#### RegisterRequest
+注册请求
+
+| 属性 | 类型 | 必填 | 约束/描述 | 示例 |
+|------|------|------|------|------|
+| registerType | string | 是 | 枚举：mobile, email | "mobile" |
+| mobile | string | 条件 | pattern: `^1[3-9]\d{9}$` | "13812345678" |
+| email | string (email) | 条件 | 邮箱格式 | "user@example.com" |
+| verificationCode | string | 否 | 验证码 | "123456" |
+| password | string | 条件 | minLength:6, maxLength:20 | "password123" |
+| agreement | boolean | 否 | 是否同意用户协议 | true |
+
+#### SendVerificationCodeRequest
+发送验证码请求
+
+| 属性 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| contact | string | 是 | 手机号或邮箱 |
+| type | string | 是 | 验证码类型：register, login, bind, reset |
+
+#### ThirdPartyLoginRequest
+第三方登录请求
+
+| 属性 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| platform | string | 是 | 平台：wechat, weibo |
+| authCode | string | 是 | 第三方授权码 |
+
+---
+
+### 认证中心 Schema
+
+#### RealNameVerifyRequest
+实名认证请求
+
+| 属性 | 类型 | 必填 | 约束/描述 |
+|------|------|------|------|
+| realName | string | 是 | 真实姓名 |
+| idCardNo | string | 是 | pattern: `^[1-9]\d{5}(18\|19\|20)\d{2}(0[1-9]\|1[0-2])(0[1-9]\|[12]\d\|3[01])\d{3}[\dXx]$` |
+| idCardFrontUrl | string | 是 | 身份证正面照URL |
+| idCardBackUrl | string | 是 | 身份证背面照URL |
+| faceImageUrl | string | 是 | 人脸照片URL |
+
+#### ProfessionVerifyRequest
+专业认证请求
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| certificateUrls | array of strings | 证书材料URL列表 |
+| educationUrls | array of strings | 学历证明URL列表 |
+| professionType | string | 从业类型 |
+
+#### RiskAssessmentSubmitRequest
+风险测评提交请求
+
+| 属性 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| answers | array of objects | 是 | 答案列表 |
+| answers[].questionId | string | - | 问题ID |
+| answers[].selectedOption | integer | - | 选中的选项编号 |
+
+#### RiskAssessmentResult
+风险测评结果
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| level | integer | 风险等级（1-4） |
+| levelName | string | 等级名称 |
+| score | integer | 得分 |
+| description | string | 描述 |
+
+---
+
+### 帖子相关 Schema
+
+#### Post
+帖子摘要
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| postId | integer (int64) | 帖子ID |
+| author | UserSimple | 作者信息 |
+| title | string | 标题 |
+| summary | string | 摘要 |
+| contentType | integer | 1-普通，2-长文，3-投票，4-动态 |
+| sectionId | integer | 板块ID |
+| zoneId | integer | 专区ID |
+| stockCode | string | 股票代码 |
+| isPinned | boolean | 是否置顶 |
+| isEssence | boolean | 是否精华 |
+| stats | object | 统计数据 |
+| stats.likes | integer | 点赞数 |
+| stats.favorites | integer | 收藏数 |
+| stats.shares | integer | 转发数 |
+| stats.comments | integer | 评论数 |
+| stats.views | integer | 浏览数 |
+| publishedAt | string (date-time) | 发布时间 |
+
+#### PostDetail
+帖子详情（继承Post）
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| content | string | 纯文本内容 |
+| richContent | string | HTML富文本内容 |
+| attachments | array of Attachment | 附件列表 |
+| voteInfo | VoteInfo | 投票信息（如果是投票帖） |
+
+#### PostCreateRequest
+创建普通帖子请求
+
+| 属性 | 类型 | 必填 | 约束 | 描述 |
+|------|------|------|------|------|
+| title | string | 是 | maxLength:200 | 标题 |
+| content | string | 是 | - | 内容 |
+| contentType | integer | 否 | 默认1 | 内容类型 |
+| sectionId | integer | 是 | - | 板块ID |
+| zoneId | integer | 否 | - | 专区ID |
+| stockCode | string | 否 | - | 股票代码 |
+| attachments | array of strings | 否 | - | 附件ID列表 |
+
+#### LongArticleRequest
+长文请求（继承PostCreateRequest）
+
+| 新增属性 | 类型 | 描述 |
+|------|------|------|
+| richContent | string | HTML格式富文本 |
+| coverImage | string | 封面图URL |
+
+#### VoteCreateRequest
+投票创建请求
+
+| 属性 | 类型 | 必填 | 约束 | 描述 |
+|------|------|------|------|------|
+| title | string | 是 | - | 投票标题 |
+| options | array of strings | 是 | minItems:2, maxItems:10 | 选项列表 |
+| maxChoices | integer | 否 | min:1, max:5, default:1 | 最多可选数量 |
+| durationHours | integer | 否 | default:24 | 持续小时数 |
+| isAnonymous | boolean | 否 | default:false | 是否匿名投票 |
+
+#### VoteInfo
+投票信息
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| voteId | integer | 投票ID |
+| title | string | 标题 |
+| options | array of objects | 选项列表 |
+| options[].index | integer | 选项索引 |
+| options[].text | string | 选项文本 |
+| options[].count | integer | 得票数 |
+| options[].percentage | number | 百分比 |
+| maxChoices | integer | 最大可选数 |
+| totalVotes | integer | 总投票数 |
+| isEnded | boolean | 是否已结束 |
+| userSelected | array of integers | 当前用户选择的选项（已登录时） |
+
+#### VoteCastRequest
+投票请求
+
+| 属性 | 类型 | 必填 | 约束 |
+|------|------|------|------|
+| selectedOptions | array of integers | 是 | minItems:1 选中的选项索引 |
+
+---
+
+### 评论相关 Schema
+
+#### Comment
+评论信息
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| commentId | integer (int64) | 评论ID |
+| postId | integer | 所属帖子ID |
+| author | UserSimple | 作者 |
+| content | string | 内容 |
+| parentId | integer | 父评论ID |
+| rootId | integer | 根评论ID |
+| stats | object | 统计 |
+| stats.likes | integer | 点赞数 |
+| stats.replies | integer | 回复数 |
+| publishedAt | string (date-time) | 发布时间 |
+| atUsers | array of UserSimple | @的用户列表 |
+
+#### CommentCreateRequest
+创建评论请求
+
+| 属性 | 类型 | 必填 | 约束 | 描述 |
+|------|------|------|------|------|
+| content | string | 是 | maxLength:2000 | 评论内容 |
+| parentId | integer (int64) | 否 | - | 回复的评论ID |
+| atUserIds | array of integers | 否 | - | @的用户ID列表 |
+
+---
+
+### 板块相关 Schema
+
+#### Section
+板块
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| sectionId | integer | 板块ID |
+| name | string | 名称 |
+| slug | string | 标识符 |
+| icon | string | 图标URL |
+| description | string | 描述 |
+| postCount | integer | 帖子数 |
+| children | array of Zone | 子专区列表 |
+
+#### Zone
+专区
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| zoneId | integer | 专区ID |
+| sectionId | integer | 所属板块ID |
+| name | string | 名称 |
+| slug | string | 标识符 |
+| icon | string | 图标URL |
+| description | string | 描述 |
+| postCount | integer | 帖子数 |
+
+---
+
+### 社交相关 Schema
+
+#### UserSimple
+用户简要信息
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| userId | integer | 用户ID |
+| nickname | string | 昵称 |
+| avatarUrl | string | 头像URL |
+| verificationLevel | integer | 认证等级 |
+
+#### FollowInfo
+关注状态
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| followerCount | integer | 粉丝数 |
+| followeeCount | integer | 关注数 |
+| isFollowing | boolean | 当前用户是否关注对方 |
+| isFollowed | boolean | 对方是否关注当前用户 |
+| isStarred | boolean | 是否为星标关注 |
+
+#### PrivateMessage
+私信
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| messageId | integer | 消息ID |
+| sessionId | string | 会话ID |
+| sender | UserSimple | 发送者 |
+| receiver | UserSimple | 接收者 |
+| messageType | integer | 消息类型 |
+| content | string | 内容 |
+| isRead | boolean | 是否已读 |
+| isRecalled | boolean | 是否已撤回 |
+| sentAt | string (date-time) | 发送时间 |
+
+#### PrivateMessageSendRequest
+发送私信请求
+
+| 属性 | 类型 | 必填 | 约束 | 描述 |
+|------|------|------|------|------|
+| receiverId | integer | 是 | - | 接收者ID |
+| messageType | integer | 否 | default:1 | 消息类型 |
+| content | string | 是 | maxLength:2000 | 内容 |
+
+#### Group
+群组
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| groupId | integer | 群组ID |
+| name | string | 名称 |
+| avatar | string | 头像URL |
+| introduction | string | 简介 |
+| tags | array of strings | 标签 |
+| mode | integer | 模式（公开/私密） |
+| memberCount | integer | 成员数 |
+| postCount | integer | 帖子数 |
+| owner | UserSimple | 群主 |
+| createdAt | string (date-time) | 创建时间 |
+
+#### GroupCreateRequest
+创建群组请求
+
+| 属性 | 类型 | 必填 | 约束 | 描述 |
+|------|------|------|------|------|
+| name | string | 是 | maxLength:50 | 名称 |
+| introduction | string | 否 | maxLength:200 | 简介 |
+| tags | array of strings | 否 | - | 标签 |
+| mode | integer | 否 | default:1 | 模式 |
+| avatar | string | 否 | - | 头像URL |
+
+---
+
+### 互动相关 Schema
+
+#### InteractionStats
+互动统计
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| liked | boolean | 当前用户是否已点赞 |
+| favorited | boolean | 是否已收藏 |
+| shared | boolean | 是否已转发 |
+| likeCount | integer | 点赞总数 |
+| favoriteCount | integer | 收藏总数 |
+| shareCount | integer | 转发总数 |
+
+#### ReportRequest
+举报请求
+
+| 属性 | 类型 | 必填 | 约束 | 描述 |
+|------|------|------|------|------|
+| targetType | integer | 是 | enum:[1,2,3] | 目标类型：1-帖子，2-评论，3-用户 |
+| targetId | integer | 是 | - | 目标ID |
+| reasonType | integer | 是 | enum:[1,2,3,4,5] | 举报原因类型 |
+| reasonDesc | string | 否 | maxLength:200 | 补充描述 |
+
+---
+
+### 搜索相关 Schema
+
+#### SearchRequest
+搜索请求
+
+| 属性 | 类型 | 约束/默认 | 描述 |
+|------|------|------|------|
+| keyword | string | - | 搜索关键词 |
+| type | string | enum:[all,post,user,stock], default:all | 搜索类型 |
+| sortBy | string | enum:[relevance,time,likes,comments], default:relevance | 排序方式 |
+| timeRange | string | enum:[all,today,week,month,year], default:all | 时间范围 |
+| sectionId | integer | - | 板块筛选 |
+| isEssence | boolean | - | 是否精华帖 |
+| pageNum | integer | min:1, default:1 | 页码 |
+| pageSize | integer | min:1, max:50, default:20 | 每页大小 |
+
+#### SearchResult
+搜索结果
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| keyword | string | 搜索关键词 |
+| total | integer | 总数 |
+| posts | array of Post | 帖子结果 |
+| users | array of UserSimple | 用户结果 |
+| stocks | array of objects | 股票结果 |
+| stocks[].code | string | 股票代码 |
+| stocks[].name | string | 股票名称 |
+| stocks[].postCount | integer | 相关帖子数 |
+
+---
+
+### 通知相关 Schema
+
+#### Notification
+通知消息
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| notificationId | integer | 通知ID |
+| type | string | 类型：like, comment, follow, system, message |
+| title | string | 标题 |
+| content | string | 内容 |
+| isRead | boolean | 是否已读 |
+| targetId | integer | 关联的目标ID（如帖子ID） |
+| createdAt | string (date-time) | 创建时间 |
+
+---
+
+### 通用 Schema
+
+#### Attachment
+附件
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| attachmentId | integer | 附件ID |
+| fileName | string | 文件名 |
+| fileSize | integer | 文件大小（字节） |
+| fileUrl | string | 文件URL |
+
+#### HotTopic
+热门话题
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| rank | integer | 排名 |
+| name | string | 名称 |
+| heatValue | integer | 热度值 |
+| postCount | integer | 帖子数 |
+| type | string | 类型：topic, stock |
+
+---
+
+## API 路径定义
+
+### 1. 认证模块
+
+#### POST /auth/login
+- **标签**：认证
+- **摘要**：用户登录
+- **请求体**：application/json，schema: LoginRequest
+- **响应 200**：成功，返回 LoginResponse（包装在ApiResponse中）
+- **响应 401**：用户名或密码错误
+
+#### POST /auth/logout
+- **标签**：认证
+- **摘要**：用户登出
+- **安全**：BearerAuth
+- **响应 200**：登出成功
+
+#### POST /auth/register
+- **标签**：认证
+- **摘要**：用户注册
+- **请求体**：RegisterRequest
+- **响应 201**：注册成功，返回 LoginResponse
+
+#### POST /auth/captcha/send
+- **标签**：认证
+- **摘要**：发送验证码
+- **请求体**：SendVerificationCodeRequest
+- **响应 200**：发送成功
+
+#### POST /auth/third-party/login
+- **标签**：认证
+- **摘要**：第三方登录
+- **请求体**：ThirdPartyLoginRequest
+- **响应 200**：登录成功
+
+#### POST /auth/refresh
+- **标签**：认证
+- **摘要**：刷新Token
+- **安全**：BearerAuth
+- **响应 200**：刷新成功
+
+---
+
+### 2. 用户模块
+
+#### GET /users/me
+- **标签**：用户
+- **摘要**：获取当前用户信息
+- **安全**：BearerAuth
+- **响应 200**：成功，返回 User
+
+#### PUT /users/me
+- **标签**：用户
+- **摘要**：更新当前用户资料
+- **安全**：BearerAuth
+- **请求体**：UserProfileUpdate
+- **响应 200**：更新成功
+
+#### GET /users/{userId}
+- **标签**：用户
+- **摘要**：获取指定用户信息
+- **参数**：`userId` (path, integer, int64, 必填)
+- **响应 200**：成功，返回 User
+
+#### GET /users/me/preference
+- **标签**：用户
+- **摘要**：获取用户偏好设置
+- **安全**：BearerAuth
+- **响应 200**：成功
+
+#### PUT /users/me/preference
+- **标签**：用户
+- **摘要**：更新用户偏好设置
+- **安全**：BearerAuth
+- **请求体**：UserPreference
+- **响应 200**：更新成功
+
+#### GET /users/me/privacy
+- **标签**：用户
+- **摘要**：获取隐私设置
+- **安全**：BearerAuth
+- **响应 200**：成功
+
+#### PUT /users/me/privacy
+- **标签**：用户
+- **摘要**：更新隐私设置
+- **安全**：BearerAuth
+- **请求体**：PrivacySettings
+- **响应 200**：更新成功
+
+#### GET /users/me/achievement
+- **标签**：用户
+- **摘要**：获取用户成就
+- **安全**：BearerAuth
+- **响应 200**：成功，返回 UserAchievement
+
+---
+
+### 3. 认证中心模块
+
+#### POST /verify/real-name
+- **标签**：认证中心
+- **摘要**：提交实名认证
+- **安全**：BearerAuth
+- **请求体**：RealNameVerifyRequest
+- **响应 200**：提交成功
+
+#### POST /verify/profession
+- **标签**：认证中心
+- **摘要**：提交专业认证
+- **安全**：BearerAuth
+- **请求体**：ProfessionVerifyRequest
+- **响应 200**：提交成功
+
+#### GET /verify/status
+- **标签**：认证中心
+- **摘要**：获取认证状态
+- **安全**：BearerAuth
+- **响应 200**：成功
+
+#### POST /risk-assessment
+- **标签**：认证中心
+- **摘要**：提交风险测评
+- **安全**：BearerAuth
+- **请求体**：RiskAssessmentSubmitRequest
+- **响应 200**：提交成功，返回 RiskAssessmentResult
+
+#### GET /risk-assessment
+- **标签**：认证中心
+- **摘要**：获取当前风险测评结果
+- **安全**：BearerAuth
+- **响应 200**：成功
+
+---
+
+### 4. 内容模块 - 帖子
+
+#### GET /posts
+- **标签**：内容
+- **摘要**：获取帖子列表
+- **参数**：
+  - `sectionId` (query, integer)
+  - `zoneId` (query, integer)
+  - `sortBy` (query, string, enum: latest/hottest/essence, default: latest)
+  - `pageNum` (query, integer, default:1)
+  - `pageSize` (query, integer, default:20)
+- **响应 200**：成功，返回 PageResponse
+
+#### POST /posts
+- **标签**：内容
+- **摘要**：发布普通帖子
+- **安全**：BearerAuth
+- **请求体**：PostCreateRequest
+- **响应 201**：发布成功
+
+#### POST /posts/long-article
+- **标签**：内容
+- **摘要**：发布长文分析
+- **安全**：BearerAuth
+- **请求体**：LongArticleRequest
+- **响应 201**：发布成功
+
+#### POST /posts/vote
+- **标签**：内容
+- **摘要**：发布投票帖
+- **安全**：BearerAuth
+- **请求体**：包含 PostCreateRequest 和 vote (VoteCreateRequest)
+- **响应 201**：发布成功
+
+#### GET /posts/{postId}
+- **标签**：内容
+- **摘要**：获取帖子详情
+- **参数**：`postId` (path, integer, int64, 必填)
+- **响应 200**：成功，返回 PostDetail
+
+#### PUT /posts/{postId}
+- **标签**：内容
+- **摘要**：编辑帖子
+- **安全**：BearerAuth
+- **参数**：`postId` (path, 必填)
+- **请求体**：PostCreateRequest
+- **响应 200**：更新成功
+
+#### DELETE /posts/{postId}
+- **标签**：内容
+- **摘要**：删除帖子
+- **安全**：BearerAuth
+- **参数**：`postId` (path, 必填)
+- **响应 204**：删除成功
+
+#### POST /posts/{postId}/vote/cast
+- **标签**：内容
+- **摘要**：参与投票
+- **安全**：BearerAuth
+- **参数**：`postId` (path, 必填)
+- **请求体**：VoteCastRequest
+- **响应 200**：投票成功
+
+#### GET /posts/{postId}/vote/result
+- **标签**：内容
+- **摘要**：获取投票结果
+- **参数**：`postId` (path, 必填)
+- **响应 200**：成功
+
+#### GET /posts/{postId}/interaction
+- **标签**：互动
+- **摘要**：获取帖子互动统计
+- **安全**：BearerAuth
+- **参数**：`postId` (path, 必填)
+- **响应 200**：成功，返回 InteractionStats
+
+#### POST /posts/{postId}/like
+- **标签**：互动
+- **摘要**：点赞帖子
+- **安全**：BearerAuth
+- **参数**：`postId` (path, 必填)
+- **响应 200**：成功
+
+#### DELETE /posts/{postId}/like
+- **标签**：互动
+- **摘要**：取消点赞
+- **安全**：BearerAuth
+- **参数**：`postId` (path, 必填)
+- **响应 204**：取消成功
+
+#### POST /posts/{postId}/favorite
+- **标签**：互动
+- **摘要**：收藏帖子
+- **安全**：BearerAuth
+- **参数**：`postId` (path, 必填)
+- **响应 200**：成功
+
+#### DELETE /posts/{postId}/favorite
+- **标签**：互动
+- **摘要**：取消收藏
+- **安全**：BearerAuth
+- **参数**：`postId` (path, 必填)
+- **响应 204**：取消成功
+
+#### POST /posts/{postId}/share
+- **标签**：互动
+- **摘要**：转发帖子
+- **安全**：BearerAuth
+- **参数**：`postId` (path, 必填)
+- **响应 200**：成功
+
+---
+
+### 5. 内容模块 - 评论
+
+#### GET /posts/{postId}/comments
+- **标签**：内容
+- **摘要**：获取帖子评论列表
+- **参数**：
+  - `postId` (path, 必填)
+  - `pageNum` (query, integer, default:1)
+  - `pageSize` (query, integer, default:20)
+  - `sortBy` (query, string, enum: latest/hottest, default: latest)
+- **响应 200**：成功
+
+#### POST /posts/{postId}/comments
+- **标签**：内容
+- **摘要**：发表评论
+- **安全**：BearerAuth
+- **参数**：`postId` (path, 必填)
+- **请求体**：CommentCreateRequest
+- **响应 201**：发表成功
+
+#### DELETE /comments/{commentId}
+- **标签**：内容
+- **摘要**：删除评论
+- **安全**：BearerAuth
+- **参数**：`commentId` (path, 必填)
+- **响应 204**：删除成功
+
+#### POST /comments/{commentId}/like
+- **标签**：互动
+- **摘要**：点赞评论
+- **安全**：BearerAuth
+- **参数**：`commentId` (path, 必填)
+- **响应 200**：成功
+
+#### DELETE /comments/{commentId}/like
+- **标签**：互动
+- **摘要**：取消点赞评论
+- **安全**：BearerAuth
+- **参数**：`commentId` (path, 必填)
+- **响应 204**：取消成功
+
+---
+
+### 6. 板块模块
+
+#### GET /sections
+- **标签**：板块
+- **摘要**：获取所有板块
+- **响应 200**：成功，返回 Section 数组
+
+#### GET /sections/{sectionId}/zones
+- **标签**：板块
+- **摘要**：获取板块下的专区
+- **参数**：`sectionId` (path, 必填)
+- **响应 200**：成功
+
+---
+
+### 7. 盘中动态
+
+#### GET /dynamics
+- **标签**：内容
+- **摘要**：获取实时动态列表（时间线）
+- **参数**：`pageNum` (query, integer, default:1), `pageSize` (query, integer, default:20)
+- **响应 200**：成功
+
+#### POST /dynamics
+- **标签**：内容
+- **摘要**：发布盘中动态
+- **安全**：BearerAuth
+- **请求体**：
+  - `content` (string, maxLength:500)
+  - `imageUrls` (array of strings)
+  - `stockCode` (string)
+- **响应 201**：发布成功
+
+---
+
+### 8. 社交模块 - 关注
+
+#### POST /users/{userId}/follow
+- **标签**：社交
+- **摘要**：关注用户
+- **安全**：BearerAuth
+- **参数**：`userId` (path, 必填)
+- **响应 200**：关注成功
+
+#### DELETE /users/{userId}/follow
+- **标签**：社交
+- **摘要**：取消关注
+- **安全**：BearerAuth
+- **参数**：`userId` (path, 必填)
+- **响应 204**：取消成功
+
+#### POST /users/{userId}/follow/star
+- **标签**：社交
+- **摘要**：设为星标关注
+- **安全**：BearerAuth
+- **参数**：`userId` (path, 必填)
+- **响应 200**：成功
+
+#### DELETE /users/{userId}/follow/star
+- **标签**：社交
+- **摘要**：取消星标
+- **安全**：BearerAuth
+- **参数**：`userId` (path, 必填)
+- **响应 204**：成功
+
+#### GET /users/me/followers
+- **标签**：社交
+- **摘要**：获取我的粉丝列表
+- **安全**：BearerAuth
+- **参数**：`pageNum`, `pageSize`
+- **响应 200**：成功
+
+#### GET /users/me/followees
+- **标签**：社交
+- **摘要**：获取我关注的人列表
+- **安全**：BearerAuth
+- **参数**：`pageNum`, `pageSize`, `starredOnly` (boolean, default:false)
+- **响应 200**：成功
+
+#### GET /users/{userId}/follow/status
+- **标签**：社交
+- **摘要**：获取关注状态
+- **安全**：BearerAuth
+- **参数**：`userId` (path, 必填)
+- **响应 200**：返回 FollowInfo
+
+---
+
+### 9. 社交模块 - 私信
+
+#### GET /messages
+- **标签**：社交
+- **摘要**：获取会话列表
+- **安全**：BearerAuth
+- **参数**：`pageNum`, `pageSize`
+- **响应 200**：成功
+
+#### GET /messages/session/{sessionId}
+- **标签**：社交
+- **摘要**：获取与某用户的聊天记录
+- **安全**：BearerAuth
+- **参数**：`sessionId` (path, 必填), `pageNum`, `pageSize` (default:50)
+- **响应 200**：成功
+
+#### POST /messages/session/{sessionId}
+- **标签**：社交
+- **摘要**：发送私信
+- **安全**：BearerAuth
+- **参数**：`sessionId` (path, 必填)
+- **请求体**：PrivateMessageSendRequest
+- **响应 201**：发送成功
+
+#### POST /messages/{messageId}/recall
+- **标签**：社交
+- **摘要**：撤回私信
+- **安全**：BearerAuth
+- **参数**：`messageId` (path, 必填)
+- **响应 200**：撤回成功
+
+#### GET /messages/unread/count
+- **标签**：社交
+- **摘要**：获取未读私信数量
+- **安全**：BearerAuth
+- **响应 200**：成功
+
+---
+
+### 10. 社交模块 - 群组
+
+#### GET /groups
+- **标签**：社交
+- **摘要**：获取群组列表
+- **参数**：`keyword` (query, string), `pageNum` (default:1), `pageSize` (default:20)
+- **响应 200**：成功
+
+#### POST /groups
+- **标签**：社交
+- **摘要**：创建群组
+- **安全**：BearerAuth
+- **请求体**：GroupCreateRequest
+- **响应 201**：创建成功
+
+#### GET /groups/{groupId}
+- **标签**：社交
+- **摘要**：获取群组详情
+- **参数**：`groupId` (path, 必填)
+- **响应 200**：成功
+
+#### PUT /groups/{groupId}
+- **标签**：社交
+- **摘要**：编辑群组信息
+- **安全**：BearerAuth
+- **参数**：`groupId` (path, 必填)
+- **请求体**：GroupCreateRequest
+- **响应 200**：更新成功
+
+#### POST /groups/{groupId}/join
+- **标签**：社交
+- **摘要**：申请加入群组
+- **安全**：BearerAuth
+- **参数**：`groupId` (path, 必填)
+- **响应 200**：申请成功
+
+#### POST /groups/{groupId}/leave
+- **标签**：社交
+- **摘要**：退出群组
+- **安全**：BearerAuth
+- **参数**：`groupId` (path, 必填)
+- **响应 200**：退出成功
+
+#### GET /groups/{groupId}/members
+- **标签**：社交
+- **摘要**：获取群组成员列表
+- **参数**：`groupId` (path, 必填), `pageNum` (default:1), `pageSize` (default:50)
+- **响应 200**：成功
+
+#### GET /groups/{groupId}/posts
+- **标签**：社交
+- **摘要**：获取群组帖子列表
+- **参数**：`groupId` (path, 必填), `pageNum`, `pageSize`
+- **响应 200**：成功
+
+#### POST /groups/{groupId}/posts
+- **标签**：社交
+- **摘要**：在群组中发帖
+- **安全**：BearerAuth
+- **参数**：`groupId` (path, 必填)
+- **请求体**：`content` (string), `attachments` (array of strings)
+- **响应 201**：发布成功
+
+---
+
+### 11. 搜索模块
+
+#### GET /search
+- **标签**：搜索
+- **摘要**：全文搜索
+- **参数**：
+  - `keyword` (query, 必填)
+  - `type` (query, enum: all/post/user/stock, default:all)
+  - `sortBy` (query, enum: relevance/time/likes/comments, default:relevance)
+  - `pageNum` (default:1)
+  - `pageSize` (default:20)
+- **响应 200**：返回 SearchResult
+
+#### POST /search
+- **标签**：搜索
+- **摘要**：高级搜索（POST方式）
+- **请求体**：SearchRequest
+- **响应 200**：成功
+
+#### GET /search/suggest
+- **标签**：搜索
+- **摘要**：搜索联想（自动补全）
+- **参数**：`keyword` (query, 必填), `limit` (query, integer, default:10)
+- **响应 200**：成功
+
+#### GET /search/hot-keywords
+- **标签**：搜索
+- **摘要**：获取热门搜索关键词
+- **参数**：`period` (query, enum: day/week, default:day), `limit` (integer, default:10)
+- **响应 200**：成功
+
+---
+
+### 12. 首页推荐模块
+
+#### GET /feed/recommend
+- **标签**：内容
+- **摘要**：个性化推荐流
+- **安全**：BearerAuth
+- **参数**：`pageNum`, `pageSize`
+- **响应 200**：成功
+
+#### GET /feed/hot
+- **标签**：内容
+- **摘要**：热榜列表
+- **参数**：`period` (enum: day/week, default:day), `limit` (integer, default:20)
+- **响应 200**：返回 HotTopic 数组
+
+#### GET /feed/essence
+- **标签**：内容
+- **摘要**：编辑精选列表
+- **参数**：`pageNum`, `pageSize`
+- **响应 200**：成功
+
+#### GET /feed/following
+- **标签**：内容
+- **摘要**：关注动态流
+- **安全**：BearerAuth
+- **参数**：`pageNum`, `pageSize`
+- **响应 200**：成功
+
+---
+
+### 13. 通知模块
+
+#### GET /notifications
+- **标签**：通知
+- **摘要**：获取通知列表
+- **安全**：BearerAuth
+- **参数**：`type` (enum: like/comment/follow/system/message), `isRead` (boolean), `pageNum`, `pageSize`
+- **响应 200**：成功
+
+#### GET /notifications/unread-count
+- **标签**：通知
+- **摘要**：获取未读通知数量
+- **安全**：BearerAuth
+- **响应 200**：成功
+
+#### PUT /notifications/{notificationId}/read
+- **标签**：通知
+- **摘要**：标记通知为已读
+- **安全**：BearerAuth
+- **参数**：`notificationId` (path, 必填)
+- **响应 200**：成功
+
+#### PUT /notifications/read-all
+- **标签**：通知
+- **摘要**：标记所有通知为已读
+- **安全**：BearerAuth
+- **响应 200**：成功
+
+---
+
+### 14. 举报模块
+
+#### POST /reports
+- **标签**：互动
+- **摘要**：提交举报
+- **安全**：BearerAuth
+- **请求体**：ReportRequest
+- **响应 201**：举报成功
+
+---
+
+### 15. 附件模块
+
+#### POST /attachments/upload
+- **标签**：内容
+- **摘要**：上传附件
+- **安全**：BearerAuth
+- **请求体**：multipart/form-data
+  - `file` (binary, 必填)
+  - `fileType` (integer, 描述: 1-PDF, 2-Excel, 3-图片)
+- **响应 200**：返回 Attachment
+
+---
+
+### 16. 管理模块（管理员专用）
+
+#### GET /admin/audit/pending
+- **标签**：管理
+- **摘要**：获取待审核列表
+- **安全**：BearerAuth (需admin权限)
+- **参数**：`targetType` (integer), `pageNum`, `pageSize`
+- **响应 200**：成功
+
+#### POST /admin/audit/{auditId}/approve
+- **标签**：管理
+- **摘要**：审核通过
+- **安全**：BearerAuth
+- **参数**：`auditId` (path, 必填)
+- **请求体**：`remark` (string)
+- **响应 200**：成功
+
+#### POST /admin/audit/{auditId}/reject
+- **标签**：管理
+- **摘要**：审核驳回
+- **安全**：BearerAuth
+- **参数**：`auditId` (path, 必填)
+- **请求体**：`reason` (string, 必填)
+- **响应 200**：成功
+
+#### POST /admin/users/{userId}/punish
+- **标签**：管理
+- **摘要**：处罚用户
+- **安全**：BearerAuth
+- **参数**：`userId` (path, 必填)
+- **请求体**：
+  - `punishType` (integer, enum:[1,2,3], 1-警告,2-禁言,3-封号, 必填)
+  - `reason` (string, 必填)
+  - `durationDays` (integer, 处罚天数，0表示永久)
+- **响应 200**：成功
+
+#### POST /admin/users/{userId}/punish/{punishId}/lift
+- **标签**：管理
+- **摘要**：解除处罚
+- **安全**：BearerAuth
+- **参数**：`userId`, `punishId` (path, 必填)
+- **响应 200**：成功
+
+#### POST /admin/sections
+- **标签**：管理
+- **摘要**：新增板块
+- **安全**：BearerAuth
+- **请求体**：Section
+- **响应 201**：创建成功
+
+#### PUT /admin/sections
+- **标签**：管理
+- **摘要**：编辑板块
+- **安全**：BearerAuth
+- **请求体**：Section
+- **响应 200**：更新成功
+
+#### DELETE /admin/sections
+- **标签**：管理
+- **摘要**：删除板块
+- **安全**：BearerAuth
+- **参数**：`sectionId` (query, 必填)
+- **响应 204**：删除成功
+
+#### GET /admin/statistics/overview
+- **标签**：管理
+- **摘要**：获取平台整体数据统计
+- **安全**：BearerAuth
+- **参数**：`date` (query, string, format: date)
+- **响应 200**：成功
+
+#### GET /admin/statistics/trend
+- **标签**：管理
+- **摘要**：获取数据趋势
+- **安全**：BearerAuth
+- **参数**：
+  - `startDate` (query, date, 必填)
+  - `endDate` (query, date, 必填)
+  - `metrics` (query, string, 指标列表，逗号分隔)
+- **响应 200**：成功
+
+---
+
+## 错误码说明
+
+| HTTP状态码 | 说明 |
+|------------|------|
+| 200 | 成功 |
+| 201 | 创建成功 |
+| 400 | 参数错误 |
+| 401 | 未认证（未登录或Token失效） |
+| 403 | 无权限（权限不足） |
+| 404 | 资源不存在 |
+| 500 | 服务器错误 |
+
+> **业务状态码**：响应中的 `code` 字段，0 表示成功，非0表示失败，具体错误信息见 `message` 字段。
